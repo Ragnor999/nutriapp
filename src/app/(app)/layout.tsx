@@ -2,7 +2,7 @@
 
 'use client';
 
-import { useAuth } from '@/hooks/use-auth.ts';
+import { useAuth } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
