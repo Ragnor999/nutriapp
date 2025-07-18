@@ -19,65 +19,47 @@ interface NutrientAnalysisProps {
 }
 
 const parseAnalysis = (text: string): ParsedAnalysis => {
-  const lines = text.split('\n');
-  const macros: { name: string; value: number }[] = [];
-  let micros: string[] = [];
-  let calories = 0;
+    const macros: { name: string; value: number }[] = [];
+    let micros: string[] = [];
+    let calories = 0;
 
-  let currentSection: 'macros' | 'micros' | 'calories' | null = null;
-
-  lines.forEach(line => {
-    const trimmedLine = line.trim();
-    if (trimmedLine.startsWith('## Macronutrients')) {
-      currentSection = 'macros';
-      return;
-    } else if (trimmedLine.startsWith('## Micronutrients')) {
-      currentSection = 'micros';
-      return;
-    } else if (trimmedLine.startsWith('## Estimated Calories')) {
-      currentSection = 'calories';
-      return;
+    // Robustly find calories
+    const caloriesMatch = text.match(/## Estimated Calories\s*\n\D*(\d+)/);
+    if (caloriesMatch && caloriesMatch[1]) {
+        calories = parseInt(caloriesMatch[1], 10);
     }
 
-    if (!trimmedLine) return;
+    // Robustly find macros
+    const macroSectionMatch = text.match(/## Macronutrients([\s\S]*?)## Micronutrients/);
+    if (macroSectionMatch && macroSectionMatch[1]) {
+        const macroText = macroSectionMatch[1];
+        const proteinMatch = macroText.match(/Protein\s*:\s*([\d.]+)\s*g/i);
+        const carbsMatch = macroText.match(/Carbohydrates?\s*:\s*([\d.]+)\s*g/i);
+        const fatMatch = macroText.match(/Fat\s*:\s*([\d.]+)\s*g/i);
 
-    switch (currentSection) {
-      case 'macros': {
-        const match = trimmedLine.match(/^(Protein|Carbohydrates?|Fat)\s*:\s*([\d.]+)\s*g/i);
-        if (match) {
-          let name = match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase();
-          if (name === 'Carbohydrates') name = 'Carbs';
-          macros.push({ name, value: parseFloat(match[2]) });
-        }
-        break;
-      }
-      case 'micros': {
-        const cleanLine = trimmedLine.replace(/^-|\*|•/, '').trim();
-        if (cleanLine) {
-          micros.push(cleanLine);
-        }
-        break;
-      }
-      case 'calories': {
-        const match = trimmedLine.match(/(\d+)/);
-        if (match) {
-          calories = parseInt(match[1], 10);
-        }
-        break;
-      }
+        if (proteinMatch) macros.push({ name: 'Protein', value: parseFloat(proteinMatch[1]) });
+        if (carbsMatch) macros.push({ name: 'Carbs', value: parseFloat(carbsMatch[1]) });
+        if (fatMatch) macros.push({ name: 'Fat', value: parseFloat(fatMatch[1]) });
     }
-  });
+    
+    // Robustly find micros
+    const microSectionMatch = text.match(/## Micronutrients([\s\S]*?)(\n##|$)/);
+    if (microSectionMatch && microSectionMatch[1]) {
+        micros = microSectionMatch[1]
+            .split('\n')
+            .map(line => line.trim().replace(/^-|\*|•/, '').trim())
+            .filter(line => line.length > 0);
+    }
 
-  // Fallback if calories are not explicitly parsed but macros are
-  if (calories === 0 && macros.length > 0) {
-    const proteinG = macros.find(m => m.name === 'Protein')?.value || 0;
-    const carbsG = macros.find(m => m.name === 'Carbs')?.value || 0;
-    const fatG = macros.find(m => m.name === 'Fat')?.value || 0;
-    calories = Math.round((proteinG * 4) + (carbsG * 4) + (fatG * 9));
-  }
+    // Fallback for calories if not found but macros are present
+    if (calories === 0 && macros.length > 0) {
+        const proteinG = macros.find(m => m.name === 'Protein')?.value || 0;
+        const carbsG = macros.find(m => m.name === 'Carbs')?.value || 0;
+        const fatG = macros.find(m => m.name === 'Fat')?.value || 0;
+        calories = Math.round((proteinG * 4) + (carbsG * 4) + (fatG * 9));
+    }
 
-
-  return { macros, micros, calories };
+    return { macros, micros, calories };
 };
 
 export function NutrientAnalysis({ analysis, onParsed }: NutrientAnalysisProps) {
