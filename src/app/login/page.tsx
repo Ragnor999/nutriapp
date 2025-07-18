@@ -24,6 +24,7 @@ export default function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
+    // This effect will run when the user state changes, redirecting after successful login.
     if (!loading && user) {
       router.replace(isAdmin ? '/admin' : '/dashboard');
     }
@@ -34,26 +35,23 @@ export default function LoginPage() {
     setIsSubmitting(true);
     try {
       await login(email, password);
-      toast({
-        title: 'Login Successful',
-        description: 'Welcome back!',
-      });
-      router.push('/dashboard');
+      // The redirect is now handled by the useEffect hook, which waits for the user state to be updated.
     } catch (error: any) {
       toast({
         variant: 'destructive',
         title: 'Login Failed',
         description: error.message || 'Please check your credentials and try again.',
       });
-    } finally {
       setIsSubmitting(false);
     }
+    // No need to set isSubmitting to false here, as the component will either unmount on redirect or an error will be caught.
   };
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
   };
   
+  // This loader will show while the initial auth state is being determined.
   if (loading || user) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
