@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, MouseEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -8,7 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { analyzeFoodPhoto, AnalyzeFoodPhotoOutput } from '@/ai/flows/analyze-food-photo';
 import { NutrientAnalysis } from './NutrientAnalysis';
 import Image from 'next/image';
-import { UploadCloud, Loader2 } from 'lucide-react';
+import { UploadCloud, Loader2, X } from 'lucide-react';
 
 export function DashboardClient() {
   const [analysis, setAnalysis] = useState<AnalyzeFoodPhotoOutput | null>(null);
@@ -74,6 +74,16 @@ export function DashboardClient() {
     }
   };
 
+  const handleClearPreview = (e: MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation(); // Prevent the click from triggering the file input
+    setPreview(null);
+    setAnalysis(null);
+    setError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   return (
     <div className="grid gap-6 md:grid-cols-2">
       <Card>
@@ -83,13 +93,24 @@ export function DashboardClient() {
         </CardHeader>
         <CardContent>
           <div
-            className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
+            className="relative flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
             onDrop={handleFileDrop}
             onDragOver={(e) => e.preventDefault()}
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => !preview && fileInputRef.current?.click()}
           >
             {preview ? (
-              <Image src={preview} alt="Food preview" width={256} height={256} className="object-contain h-full w-full p-2" />
+              <>
+                <Image src={preview} alt="Food preview" width={256} height={256} className="object-contain h-full w-full p-2" />
+                 <Button
+                    variant="destructive"
+                    size="icon"
+                    className="absolute top-2 right-2 rounded-full h-8 w-8"
+                    onClick={handleClearPreview}
+                  >
+                    <X className="h-4 w-4" />
+                    <span className="sr-only">Remove image</span>
+                  </Button>
+              </>
             ) : (
               <div className="text-center">
                 <UploadCloud className="mx-auto h-12 w-12 text-muted-foreground" />
