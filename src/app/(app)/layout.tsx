@@ -19,7 +19,7 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { CalendarDays, LayoutGrid, LogOut, Menu, Shield } from 'lucide-react';
+import { CalendarDays, LayoutGrid, LogOut, Menu, Shield, User as UserIcon } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 
 const NavLink = ({ href, children, icon: Icon }: { href: string; children: React.ReactNode; icon: React.ElementType }) => {
@@ -94,15 +94,27 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </SheetTrigger>
             <SheetContent side="left" className="flex flex-col">
               <nav className="grid gap-2 text-lg font-medium">
-                <div className="mb-4">
+                <div className="mb-4 flex flex-col gap-2">
                   <Logo />
+                  <div className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
+                    <UserIcon className="h-4 w-4" />
+                    <span className="font-semibold">{user.name}</span>
+                  </div>
                 </div>
                 {navItems}
               </nav>
             </SheetContent>
           </Sheet>
 
-          <div className="w-full flex-1" />
+          <div className="w-full flex-1">
+            {/* On desktop, show name next to logo if screen is large enough */}
+            <div className="hidden items-center gap-x-4 md:flex">
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                   <span>Signed in as:</span>
+                   <span className="font-bold text-primary">{user.name}</span>
+                </div>
+            </div>
+          </div>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
