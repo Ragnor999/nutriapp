@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { AnalyzeFoodPhotoOutput } from '@/ai/flows/analyze-food-photo';
@@ -20,35 +21,55 @@ interface NutrientAnalysisProps {
 const parseAnalysis = (text: string): ParsedAnalysis => {
   const lines = text.split('\n');
   const macros: { name: string; value: number }[] = [];
-  const micros: string[] = [];
+  let micros: string[] = [];
   let calories = 0;
 
-  const macroRegex = /(protein|carbohydrates?|fat)\s*:\s*([\d.]+)\s*g/i;
-  const calorieRegex = /calories\s*:\s*(\d+)/i;
+  let currentSection: 'macros' | 'micros' | 'calories' | null = null;
 
   lines.forEach(line => {
-    const macroMatch = line.match(macroRegex);
-    if (macroMatch) {
-      const name = macroMatch[1].charAt(0).toUpperCase() + macroMatch[1].slice(1).toLowerCase();
-      macros.push({ name: name === 'Carbohydrate' ? 'Carbs' : name, value: parseFloat(macroMatch[2]) });
+    const trimmedLine = line.trim();
+    if (trimmedLine.startsWith('## Macronutrients')) {
+      currentSection = 'macros';
+      return;
+    } else if (trimmedLine.startsWith('## Micronutrients')) {
+      currentSection = 'micros';
+      return;
+    } else if (trimmedLine.startsWith('## Estimated Calories')) {
+      currentSection = 'calories';
       return;
     }
 
-    const calorieMatch = line.match(calorieRegex);
-    if (calorieMatch) {
-      calories = parseInt(calorieMatch[1], 10);
-      return;
-    }
-    
-    // Improved logic to capture micronutrients and notes
-    const cleanLine = line.replace(/^-|\*|•/, '').trim();
-    if(cleanLine && !/macro|nutrient|breakdown/i.test(cleanLine) && cleanLine.length > 10) {
-        micros.push(cleanLine);
+    if (!trimmedLine) return;
+
+    switch (currentSection) {
+      case 'macros': {
+        const match = trimmedLine.match(/^(Protein|Carbohydrates?|Fat)\s*:\s*([\d.]+)\s*g/i);
+        if (match) {
+          let name = match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase();
+          if (name === 'Carbohydrate') name = 'Carbs';
+          macros.push({ name, value: parseFloat(match[2]) });
+        }
+        break;
+      }
+      case 'micros': {
+        const cleanLine = trimmedLine.replace(/^-|\*|•/, '').trim();
+        if (cleanLine) {
+          micros.push(cleanLine);
+        }
+        break;
+      }
+      case 'calories': {
+        const match = trimmedLine.match(/(\d+)/);
+        if (match) {
+          calories = parseInt(match[1], 10);
+        }
+        break;
+      }
     }
   });
 
-  // Fallback if calories are not explicitly mentioned
-  if (calories === 0) {
+  // Fallback if calories are not explicitly parsed but macros are
+  if (calories === 0 && macros.length > 0) {
     const proteinG = macros.find(m => m.name === 'Protein')?.value || 0;
     const carbsG = macros.find(m => m.name === 'Carbs')?.value || 0;
     const fatG = macros.find(m => m.name === 'Fat')?.value || 0;
@@ -100,7 +121,7 @@ export function NutrientAnalysis({ analysis, onParsed }: NutrientAnalysisProps) 
           )}
         </div>
         <div>
-          <h3 className="text-lg font-semibold mb-2 font-headline">Other Nutrients & Notes</h3>
+          <h3 className="text-lg font-semibold mb-2 font-headline">Micronutrients & Notes</h3>
           {micros.length > 0 ? (
             <ul className="space-y-2">
               {micros.map((item, index) => (
@@ -111,7 +132,7 @@ export function NutrientAnalysis({ analysis, onParsed }: NutrientAnalysisProps) 
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-muted-foreground">No additional nutrient details found.</p>
+            <p className="text-sm text-muted-foreground">No micronutrient details found.</p>
           )}
         </div>
       </CardContent>
