@@ -24,7 +24,7 @@ export default function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    // This effect will run when the user state changes, redirecting after successful login.
+    // This effect redirects the user if they are already logged in.
     if (!loading && user) {
       router.replace(isAdmin ? '/admin' : '/dashboard');
     }
@@ -35,7 +35,7 @@ export default function LoginPage() {
     setIsSubmitting(true);
     try {
       await login(email, password);
-      // The redirect is now handled by the useEffect hook, which waits for the user state to be updated.
+      // Redirect is handled by the useEffect hook above, which waits for user state to be updated.
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -50,13 +50,18 @@ export default function LoginPage() {
     setShowPassword(!showPassword);
   };
   
-  // This loader will show while the initial auth state is being determined OR after a successful login.
-  if (loading || user) {
+  // This loader will only show while the initial auth state is being determined on page load.
+  if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
       </div>
     );
+  }
+  
+  // Do not render the form if the user is already authenticated and waiting for redirect.
+  if (user) {
+    return null;
   }
 
   return (

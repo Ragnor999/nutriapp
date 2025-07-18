@@ -45,17 +45,16 @@ export default function SignupPage() {
       await signup(email, password, name);
       toast({
         title: 'Signup Successful',
-        description: 'Welcome to NutriSnap!',
+        description: 'Welcome to NutriSnap! Redirecting...',
       });
-      // The signup function in useAuth already redirects to /dashboard
+      // Redirect is handled by the useEffect hook.
     } catch (error: any) {
       toast({
         variant: 'destructive',
         title: 'Signup Failed',
         description: error.message || 'An unexpected error occurred.',
       });
-    } finally {
-      setIsSubmitting(false);
+       setIsSubmitting(false);
     }
   };
 
@@ -63,12 +62,16 @@ export default function SignupPage() {
     setShowPassword(!showPassword);
   };
 
-  if (loading || user) {
+  if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
       </div>
     );
+  }
+
+  if (user) {
+    return null;
   }
 
   return (
