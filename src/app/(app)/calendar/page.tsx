@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Calendar } from '@/components/ui/calendar';
 import type { NutrientData } from '@/lib/types';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { CheckCircle, Loader2 } from 'lucide-react';
+import { CheckCircle } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { getNutrientHistory } from '@/lib/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -27,15 +27,20 @@ export default function CalendarPage() {
           console.error("Failed to fetch nutrient history:", err);
           setLoading(false);
         });
+    } else {
+      // If there's no user, we shouldn't be in a loading state.
+      setLoading(false);
     }
   }, [user]);
 
-  const selectedData: NutrientData | undefined = nutrientHistory.find(
-    (entry) =>
-      date &&
-      entry.date.getDate() === date.getDate() &&
-      entry.date.getMonth() === date.getMonth() &&
-      entry.date.getFullYear() === date.getFullYear()
+  const selectedData = nutrientHistory.find(
+    (entry) => {
+      if (!date) return false;
+      const entryDate = entry.date;
+      return entryDate.getDate() === date.getDate() &&
+             entryDate.getMonth() === date.getMonth() &&
+             entryDate.getFullYear() === date.getFullYear();
+    }
   );
 
   const chartData = selectedData ? [
@@ -69,7 +74,7 @@ export default function CalendarPage() {
         </div>
       ) : (
       <div className="mt-6 grid flex-1 gap-6 md:grid-cols-[1fr_350px]">
-        <Card className="flex items-center justify-center">
+        <Card className="flex items-center justify-center p-6">
             <Calendar
                 mode="single"
                 selected={date}
@@ -95,7 +100,7 @@ export default function CalendarPage() {
             <CardDescription>
                 {selectedData ? `Est. ${selectedData.calories} calories` : 'No data for this day.'}
             </CardDescription>
-          </Header>
+          </CardHeader>
           <CardContent>
             {selectedData ? (
                 <div className="space-y-6">
