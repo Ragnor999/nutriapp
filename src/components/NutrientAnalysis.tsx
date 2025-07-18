@@ -24,18 +24,18 @@ const parseAnalysis = (text: string): ParsedAnalysis => {
     let calories = 0;
 
     // Robustly find calories
-    const caloriesMatch = text.match(/## Estimated Calories\s*\n\D*(\d+)/);
+    const caloriesMatch = text.match(/## Estimated Calories\s*\n\D*(\d+)/i);
     if (caloriesMatch && caloriesMatch[1]) {
         calories = parseInt(caloriesMatch[1], 10);
     }
 
     // Robustly find macros
-    const macroSectionMatch = text.match(/## Macronutrients([\s\S]*?)## Micronutrients/);
+    const macroSectionMatch = text.match(/## Macronutrients([\s\S]*?)## Micronutrients/i);
     if (macroSectionMatch && macroSectionMatch[1]) {
         const macroText = macroSectionMatch[1];
-        const proteinMatch = macroText.match(/Protein\s*:\s*([\d.]+)\s*g/i);
-        const carbsMatch = macroText.match(/Carbohydrates?\s*:\s*([\d.]+)\s*g/i);
-        const fatMatch = macroText.match(/Fat\s*:\s*([\d.]+)\s*g/i);
+        const proteinMatch = macroText.match(/(?:-|\*|\s)\s*Protein\s*:\s*([\d.]+)\s*g/i);
+        const carbsMatch = macroText.match(/(?:-|\*|\s)\s*Carbohydrates?\s*:\s*([\d.]+)\s*g/i);
+        const fatMatch = macroText.match(/(?:-|\*|\s)\s*Fat\s*:\s*([\d.]+)\s*g/i);
 
         if (proteinMatch) macros.push({ name: 'Protein', value: parseFloat(proteinMatch[1]) });
         if (carbsMatch) macros.push({ name: 'Carbs', value: parseFloat(carbsMatch[1]) });
@@ -43,12 +43,12 @@ const parseAnalysis = (text: string): ParsedAnalysis => {
     }
     
     // Robustly find micros
-    const microSectionMatch = text.match(/## Micronutrients([\s\S]*?)(\n##|$)/);
+    const microSectionMatch = text.match(/## Micronutrients([\s\S]*?)(\n##|$)/i);
     if (microSectionMatch && microSectionMatch[1]) {
         micros = microSectionMatch[1]
             .split('\n')
             .map(line => line.trim().replace(/^-|\*|•/, '').trim())
-            .filter(line => line.length > 0);
+            .filter(line => line.length > 2 && !line.toLowerCase().includes('micronutrients')); // filter out heading if captured
     }
 
     // Fallback for calories if not found but macros are present

@@ -34,15 +34,16 @@ const prompt = ai.definePrompt({
   name: 'analyzeFoodPhotoPrompt',
   input: {schema: AnalyzeFoodPhotoInputSchema},
   output: {schema: AnalyzeFoodPhotoOutputSchema},
-  prompt: `You are an expert nutritionist. Analyze the food photo.
+  prompt: `You are an expert nutritionist. Analyze the food in the photo.
+Provide a response in markdown format with these exact headings: "## Macronutrients", "## Micronutrients", and "## Estimated Calories".
 
-Your response MUST be in markdown format and include these exact headings:
-- "## Macronutrients"
-- "## Micronutrients"
-- "## Estimated Calories"
+Under "## Macronutrients", list Protein, Carbohydrates, and Fat with their estimated grams. Example:
+- Protein: 25g
+- Carbohydrates: 50g
+- Fat: 15g
 
-Under "## Macronutrients", list Protein, Carbohydrates, and Fat with estimated grams. Example: "Protein: 25g"
 Under "## Micronutrients", provide a bulleted list of key vitamins and minerals.
+
 Under "## Estimated Calories", provide a single number for the total estimated calories.
 
 Food Photo: {{media url=photoDataUri}}`,
