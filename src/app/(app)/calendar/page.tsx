@@ -28,11 +28,11 @@ export default function CalendarPage() {
           console.error("Failed to fetch nutrient history:", err);
           setLoading(false);
         });
-    } else {
-      // If there's no user, we shouldn't be in a loading state.
+    } else if (!user && !loading) {
+      // If there's no user and we are not in initial loading state.
       setLoading(false);
     }
-  }, [user]);
+  }, [user, loading]);
 
   const selectedData = nutrientHistory.find(
     (entry) => {
@@ -74,8 +74,8 @@ export default function CalendarPage() {
           </Card>
         </div>
       ) : (
-      <div className="mt-6 grid flex-1 gap-6 md:grid-cols-[auto_1fr] lg:grid-cols-[auto_350px]">
-        <Card className="p-0 md:p-6 flex justify-center">
+      <div className="mt-6 grid flex-1 gap-6 md:grid-cols-[auto_1fr] lg:grid-cols-[350px_1fr]">
+        <Card className="flex items-start justify-center">
             <Calendar
                 mode="single"
                 selected={date}
