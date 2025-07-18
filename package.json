@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "tsx --require ./src/load-env.ts node_modules/next/dist/bin/next",
+    "dev": "next dev",
     "genkit:dev": "tsx src/ai/dev.ts",
     "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
     "build": "next build",
