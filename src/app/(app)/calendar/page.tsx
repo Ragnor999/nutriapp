@@ -1,17 +1,36 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar } from '@/components/ui/calendar';
-import { mockNutrientHistory } from '@/lib/mockData';
 import type { NutrientData } from '@/lib/types';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, Loader2 } from 'lucide-react';
+import { useAuth } from '@/hooks/use-auth';
+import { getNutrientHistory } from '@/lib/firestore';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function CalendarPage() {
   const [date, setDate] = useState<Date | undefined>(new Date());
+  const [nutrientHistory, setNutrientHistory] = useState<NutrientData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
   
-  const selectedData: NutrientData | undefined = mockNutrientHistory.find(
+  useEffect(() => {
+    if (user) {
+      getNutrientHistory(user.uid)
+        .then(data => {
+          setNutrientHistory(data);
+          setLoading(false);
+        })
+        .catch(err => {
+          console.error("Failed to fetch nutrient history:", err);
+          setLoading(false);
+        });
+    }
+  }, [user]);
+
+  const selectedData: NutrientData | undefined = nutrientHistory.find(
     (entry) =>
       date &&
       entry.date.getDate() === date.getDate() &&
@@ -25,10 +44,30 @@ export default function CalendarPage() {
       { name: 'Fat', value: selectedData.macros.fat },
   ] : [];
 
+  const daysWithData = nutrientHistory.map(d => d.date);
+
   return (
     <div className="flex flex-col h-full">
       <h1 className="text-3xl font-bold tracking-tight font-headline">Nutrient Calendar</h1>
       <p className="text-muted-foreground">Review your past nutrient intake day by day.</p>
+      {loading ? (
+        <div className="mt-6 grid flex-1 gap-6 md:grid-cols-[1fr_350px]">
+          <Card>
+            <CardContent className="flex items-center justify-center p-6">
+               <Skeleton className="w-full h-[300px]" />
+            </CardContent>
+          </Card>
+           <Card>
+            <CardHeader>
+              <Skeleton className="h-8 w-3/4 mb-2" />
+              <Skeleton className="h-4 w-1/2" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="w-full h-[250px]" />
+            </CardContent>
+          </Card>
+        </div>
+      ) : (
       <div className="mt-6 grid flex-1 gap-6 md:grid-cols-[1fr_350px]">
         <Card className="flex items-center justify-center">
             <Calendar
@@ -37,7 +76,7 @@ export default function CalendarPage() {
                 onSelect={setDate}
                 className="p-0"
                 modifiers={{
-                    hasData: mockNutrientHistory.map(d => d.date)
+                    hasData: daysWithData
                 }}
                 modifiersStyles={{
                     hasData: {
@@ -56,7 +95,7 @@ export default function CalendarPage() {
             <CardDescription>
                 {selectedData ? `Est. ${selectedData.calories} calories` : 'No data for this day.'}
             </CardDescription>
-          </CardHeader>
+          </Header>
           <CardContent>
             {selectedData ? (
                 <div className="space-y-6">
@@ -91,6 +130,7 @@ export default function CalendarPage() {
           </CardContent>
         </Card>
       </div>
+      )}
     </div>
   );
 }

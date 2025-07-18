@@ -3,24 +3,25 @@
 import type { AnalyzeFoodPhotoOutput } from '@/ai/flows/analyze-food-photo';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'recharts';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { CheckCircle } from 'lucide-react';
+
+export interface ParsedAnalysis {
+  macros: { name: string; value: number }[];
+  micros: string[];
+  calories: number;
+}
 
 interface NutrientAnalysisProps {
   analysis: AnalyzeFoodPhotoOutput;
-}
-
-interface ParsedAnalysis {
-  macros: { name: string; value: number }[];
-  micros: string[];
-  calories: number | null;
+  onParsed: (parsedData: ParsedAnalysis) => void;
 }
 
 const parseAnalysis = (text: string): ParsedAnalysis => {
   const lines = text.split('\n');
   const macros: { name: string; value: number }[] = [];
   const micros: string[] = [];
-  let calories: number | null = null;
+  let calories = 0;
 
   const macroRegex = /(protein|carbohydrates?|fat)\s*:\s*([\d.]+)\s*g/i;
   const calorieRegex = /calories\s*:\s*(\d+)/i;
@@ -39,17 +40,33 @@ const parseAnalysis = (text: string): ParsedAnalysis => {
       return;
     }
     
-    const cleanLine = line.replace(/^-/, '').trim();
-    if(cleanLine && !/macro|nutrient/i.test(cleanLine)) {
+    // Improved logic to capture micronutrients and notes
+    const cleanLine = line.replace(/^-|\*|•/, '').trim();
+    if(cleanLine && !/macro|nutrient|breakdown/i.test(cleanLine) && cleanLine.length > 10) {
         micros.push(cleanLine);
     }
   });
 
+  // Fallback if calories are not explicitly mentioned
+  if (calories === 0) {
+    const proteinG = macros.find(m => m.name === 'Protein')?.value || 0;
+    const carbsG = macros.find(m => m.name === 'Carbs')?.value || 0;
+    const fatG = macros.find(m => m.name === 'Fat')?.value || 0;
+    calories = Math.round((proteinG * 4) + (carbsG * 4) + (fatG * 9));
+  }
+
+
   return { macros, micros, calories };
 };
 
-export function NutrientAnalysis({ analysis }: NutrientAnalysisProps) {
-  const { macros, micros, calories } = useMemo(() => parseAnalysis(analysis.nutrientAnalysis), [analysis]);
+export function NutrientAnalysis({ analysis, onParsed }: NutrientAnalysisProps) {
+  const parsedData = useMemo(() => parseAnalysis(analysis.nutrientAnalysis), [analysis]);
+
+  useEffect(() => {
+    onParsed(parsedData);
+  }, [parsedData, onParsed]);
+
+  const { macros, micros, calories } = parsedData;
 
   return (
     <Card className="h-full">

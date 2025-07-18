@@ -6,17 +6,24 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { analyzeFoodPhoto, AnalyzeFoodPhotoOutput } from '@/ai/flows/analyze-food-photo';
-import { NutrientAnalysis } from './NutrientAnalysis';
+import { saveNutrientData } from '@/lib/firestore';
+import { useAuth } from '@/hooks/use-auth';
+import { NutrientAnalysis, ParsedAnalysis } from './NutrientAnalysis';
 import Image from 'next/image';
-import { UploadCloud, Loader2, X } from 'lucide-react';
+import { UploadCloud, Loader2, X, Save } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 export function DashboardClient() {
   const [analysis, setAnalysis] = useState<AnalyzeFoodPhotoOutput | null>(null);
+  const [parsedAnalysis, setParsedAnalysis] = useState<ParsedAnalysis | null>(null);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const { user } = useAuth();
+  const router = useRouter();
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -56,6 +63,7 @@ export function DashboardClient() {
     setLoading(true);
     setError(null);
     setAnalysis(null);
+    setParsedAnalysis(null);
 
     try {
       const result = await analyzeFoodPhoto({ photoDataUri });
@@ -74,10 +82,33 @@ export function DashboardClient() {
     }
   };
 
+  const handleSaveToJournal = async () => {
+    if (!user || !parsedAnalysis) return;
+    setSaving(true);
+    try {
+      await saveNutrientData(user.uid, parsedAnalysis);
+      toast({
+        title: 'Saved to Journal',
+        description: "Your meal's nutrients have been recorded.",
+      });
+      router.push('/calendar');
+    } catch (e) {
+      console.error(e);
+      toast({
+        variant: 'destructive',
+        title: 'Save Failed',
+        description: 'Could not save nutrient data. Please try again.',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleClearPreview = (e: MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation(); // Prevent the click from triggering the file input
     setPreview(null);
     setAnalysis(null);
+    setParsedAnalysis(null);
     setError(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -125,7 +156,7 @@ export function DashboardClient() {
         </CardContent>
       </Card>
       
-      <div className="min-h-[20rem]">
+      <div className="min-h-[20rem] flex flex-col gap-4">
         {loading && (
           <Card className="flex flex-col items-center justify-center h-full">
             <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -140,7 +171,13 @@ export function DashboardClient() {
           </Card>
         )}
         {analysis && !loading && (
-            <NutrientAnalysis analysis={analysis} />
+            <NutrientAnalysis analysis={analysis} onParsed={setParsedAnalysis} />
+        )}
+        {parsedAnalysis && !loading && (
+          <Button onClick={handleSaveToJournal} disabled={saving} size="lg">
+            {saving ? <Loader2 className="animate-spin" /> : <Save />}
+            Save to Journal
+          </Button>
         )}
         {!loading && !analysis && !error && (
             <Card className="flex flex-col items-center justify-center h-full">
