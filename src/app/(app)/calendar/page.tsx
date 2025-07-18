@@ -19,6 +19,7 @@ export default function CalendarPage() {
   
   useEffect(() => {
     if (user) {
+      setLoading(true);
       getNutrientHistory(user.uid)
         .then(data => {
           setNutrientHistory(data);
@@ -28,11 +29,12 @@ export default function CalendarPage() {
           console.error("Failed to fetch nutrient history:", err);
           setLoading(false);
         });
-    } else if (!user && !loading) {
-      // If there's no user and we are not in initial loading state.
+    } else {
+      // If there's no user, we are not loading and there's no history.
       setLoading(false);
+      setNutrientHistory([]);
     }
-  }, [user, loading]);
+  }, [user]);
 
   const selectedData = nutrientHistory.find(
     (entry) => {
@@ -57,9 +59,9 @@ export default function CalendarPage() {
       <h1 className="text-3xl font-bold tracking-tight font-headline">Nutrient Calendar</h1>
       <p className="text-muted-foreground">Review your past nutrient intake day by day.</p>
       {loading ? (
-        <div className="mt-6 grid flex-1 gap-6 md:grid-cols-[auto_350px]">
+        <div className="mt-6 grid flex-1 gap-6 md:grid-cols-[350px_1fr]">
           <Card>
-            <CardContent className="p-6">
+            <CardContent className="p-6 pt-6">
                <Skeleton className="w-full h-[300px]" />
             </CardContent>
           </Card>
@@ -74,8 +76,8 @@ export default function CalendarPage() {
           </Card>
         </div>
       ) : (
-      <div className="mt-6 grid flex-1 gap-6 md:grid-cols-[auto_1fr] lg:grid-cols-[350px_1fr]">
-        <Card className="flex items-start justify-center">
+      <div className="mt-6 grid flex-1 gap-6 md:grid-cols-[350px_1fr]">
+        <Card className="flex items-start justify-center pt-6">
             <Calendar
                 mode="single"
                 selected={date}
@@ -112,7 +114,7 @@ export default function CalendarPage() {
                                 <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false}/>
                                 <YAxis fontSize={12} tickLine={false} axisLine={false}/>
                                 <Tooltip cursor={{ fill: 'hsl(var(--muted))' }} />
-                                <Bar dataKey="value" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="value" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
