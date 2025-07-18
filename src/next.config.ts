@@ -2,10 +2,10 @@ import 'dotenv/config';
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
-  // This is required to allow the Next.js dev server to accept requests from the
-  // Firebase Studio environment.
   experimental: {
-    // Other experimental features can go here if needed.
+    // This is required to allow the Next.js dev server to accept requests from the
+    // Firebase Studio environment.
+    
   },
   allowedDevOrigins: ['https://*.cloudworkstations.dev'],
   typescript: {
