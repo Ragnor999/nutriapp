@@ -44,14 +44,13 @@ export default function LoginPage() {
       });
       setIsSubmitting(false);
     }
-    // No need to set isSubmitting to false here, as the component will either unmount on redirect or an error will be caught.
   };
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
   };
   
-  // This loader will show while the initial auth state is being determined.
+  // This loader will show while the initial auth state is being determined OR after a successful login.
   if (loading || user) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
