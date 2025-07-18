@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -56,9 +57,9 @@ export default function CalendarPage() {
       <h1 className="text-3xl font-bold tracking-tight font-headline">Nutrient Calendar</h1>
       <p className="text-muted-foreground">Review your past nutrient intake day by day.</p>
       {loading ? (
-        <div className="mt-6 grid flex-1 gap-6 md:grid-cols-[1fr_350px]">
+        <div className="mt-6 grid flex-1 gap-6 md:grid-cols-[auto_350px]">
           <Card>
-            <CardContent className="flex items-center justify-center p-6">
+            <CardContent className="p-6">
                <Skeleton className="w-full h-[300px]" />
             </CardContent>
           </Card>
@@ -73,8 +74,8 @@ export default function CalendarPage() {
           </Card>
         </div>
       ) : (
-      <div className="mt-6 grid flex-1 gap-6 md:grid-cols-[1fr_350px]">
-        <Card className="flex items-center justify-center p-6">
+      <div className="mt-6 grid flex-1 gap-6 md:grid-cols-[auto_1fr] lg:grid-cols-[auto_350px]">
+        <Card className="p-0 md:p-6 flex justify-center">
             <Calendar
                 mode="single"
                 selected={date}
