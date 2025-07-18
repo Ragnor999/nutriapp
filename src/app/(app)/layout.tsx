@@ -118,13 +118,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="secondary" size="icon" className="rounded-full">
-                <Avatar>
-                  <AvatarImage src={`https://placehold.co/40x40.png`} />
+              <button className="rounded-full transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
+                <Avatar className="h-9 w-9 border-2 border-transparent group-hover:border-primary/50">
+                  <AvatarImage src={`https://placehold.co/40x40.png`} data-ai-hint="avatar user" />
                   <AvatarFallback>{user.name ? user.name.charAt(0) : 'U'}</AvatarFallback>
                 </Avatar>
                 <span className="sr-only">Toggle user menu</span>
-              </Button>
+              </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>{user.name}</DropdownMenuLabel>
