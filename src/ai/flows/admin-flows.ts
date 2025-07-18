@@ -14,7 +14,7 @@ import { initializeApp, getApps, cert, ServiceAccount } from 'firebase-admin/app
 import { getFirestore } from 'firebase-admin/firestore';
 import type { NutrientData, MacroNutrients } from '@/lib/types';
 import { Timestamp } from 'firebase-admin/firestore';
-import adminSdkConfig from '/firebase-adminsdk.json';
+import adminSdkConfig from '../../../firebase-adminsdk.json';
 
 
 // Initialize Firebase Admin SDK
