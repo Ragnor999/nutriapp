@@ -10,16 +10,17 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { getAuth } from 'firebase-admin/auth';
-import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { initializeApp, getApps, cert, ServiceAccount } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import type { NutrientData, MacroNutrients } from '@/lib/types';
 import { Timestamp } from 'firebase-admin/firestore';
+import adminSdkConfig from '/firebase-adminsdk.json';
 
 
 // Initialize Firebase Admin SDK
 if (!getApps().length) {
   initializeApp({
-    credential: cert(JSON.parse(process.env.FIREBASE_ADMIN_SDK_CONFIG!)),
+    credential: cert(adminSdkConfig as ServiceAccount),
   });
 }
 
