@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useAuth } from '@/hooks/use-auth';
@@ -107,13 +108,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <Button variant="secondary" size="icon" className="rounded-full">
                 <Avatar>
                   <AvatarImage src={`https://placehold.co/40x40.png`} />
-                  <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+                  <AvatarFallback>{user.name ? user.name.charAt(0) : 'U'}</AvatarFallback>
                 </Avatar>
                 <span className="sr-only">Toggle user menu</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuLabel>My Account</DropdownMenuLabel>
+              <DropdownMenuLabel>{user.name}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem disabled>Settings</DropdownMenuItem>
               <DropdownMenuItem disabled>Support</DropdownMenuItem>
