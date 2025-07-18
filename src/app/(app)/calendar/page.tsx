@@ -10,6 +10,7 @@ import { CheckCircle } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { getNutrientHistory } from '@/lib/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
+import { isSameDay } from 'date-fns';
 
 export default function CalendarPage() {
   const [date, setDate] = useState<Date | undefined>(new Date());
@@ -36,15 +37,7 @@ export default function CalendarPage() {
     }
   }, [user]);
 
-  const selectedData = nutrientHistory.find(
-    (entry) => {
-      if (!date) return false;
-      const entryDate = entry.date;
-      return entryDate.getDate() === date.getDate() &&
-             entryDate.getMonth() === date.getMonth() &&
-             entryDate.getFullYear() === date.getFullYear();
-    }
-  );
+  const selectedData = date ? nutrientHistory.find(entry => isSameDay(entry.date, date)) : undefined;
 
   const chartData = selectedData ? [
       { name: 'Protein', value: selectedData.macros.protein },
