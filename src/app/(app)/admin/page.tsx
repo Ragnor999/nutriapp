@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { User, Calendar, Eye, Utensils, ChevronRight } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { getAllUsers, AllUsersOutput, getUserNutrientHistory } from '@/ai/flows/admin-flows';
+import { type AllUsersOutput, type UserNutrientHistoryOutput } from '@/ai/flows/admin-flows';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import type { NutrientData } from '@/lib/types';
 import { useAuth } from '@/hooks/use-auth';
@@ -18,6 +18,8 @@ import { Calendar as CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { Calendar as UICalendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
+
 
 type UserType = AllUsersOutput['users'][0];
 
@@ -39,23 +41,42 @@ function UserDataModal({ user }: { user: UserType }) {
   const [history, setHistory] = useState<NutrientData[]>([]);
   const [selectedEntry, setSelectedEntry] = useState<NutrientData | null>(null);
   const [date, setDate] = useState<Date | undefined>();
+  const { toast } = useToast();
 
   useEffect(() => {
-    setLoading(true);
-    getUserNutrientHistory(user.uid)
-      .then((data) => {
-        const sortedHistory = data.history.sort((a, b) => b.date.getTime() - a.date.getTime());
-        setHistory(sortedHistory);
-        if (sortedHistory.length > 0) {
-            setSelectedEntry(sortedHistory[0]);
+    async function fetchHistory() {
+        setLoading(true);
+        try {
+            const response = await fetch(`/api/admin/history?userId=${user.uid}`);
+            if (!response.ok) {
+                throw new Error('Failed to fetch history');
+            }
+            const data: UserNutrientHistoryOutput = await response.json();
+            
+            // API returns dates as strings, so we need to convert them back to Date objects
+            const historyWithDates = data.history.map(item => ({
+                ...item,
+                date: new Date(item.date),
+            }));
+
+            const sortedHistory = historyWithDates.sort((a, b) => b.date.getTime() - a.date.getTime());
+            setHistory(sortedHistory);
+            if (sortedHistory.length > 0) {
+                setSelectedEntry(sortedHistory[0]);
+            }
+        } catch (err) {
+            console.error("Failed to fetch user's nutrient history:", err);
+            toast({
+                variant: 'destructive',
+                title: 'Error',
+                description: "Could not fetch user's nutrient history."
+            });
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Failed to fetch user's nutrient history:", err);
-        setLoading(false);
-      });
-  }, [user.uid]);
+    }
+    fetchHistory();
+  }, [user.uid, toast]);
 
   const filteredHistory = history.filter(entry => 
       !date || format(entry.date, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')
@@ -163,6 +184,7 @@ export default function AdminPage() {
   const [users, setUsers] = useState<UserType[]>([]);
   const { isAdmin, loading: authLoading } = useAuth();
   const router = useRouter();
+  const { toast } = useToast();
   
   useEffect(() => {
     if (!authLoading && !isAdmin) {
@@ -171,19 +193,30 @@ export default function AdminPage() {
   }, [isAdmin, authLoading, router]);
 
   useEffect(() => {
-    if (isAdmin) {
-        setLoading(true);
-        getAllUsers()
-        .then((data) => {
-            setUsers(data.users);
-            setLoading(false);
-        })
-        .catch((err) => {
-            console.error("Failed to fetch users:", err);
-            setLoading(false);
-        });
+    async function fetchUsers() {
+        if (isAdmin) {
+            setLoading(true);
+            try {
+                const response = await fetch('/api/admin/users');
+                if (!response.ok) {
+                    throw new Error('Failed to fetch users');
+                }
+                const data: AllUsersOutput = await response.json();
+                setUsers(data.users);
+            } catch (err) {
+                console.error("Failed to fetch users:", err);
+                toast({
+                    variant: 'destructive',
+                    title: 'Error',
+                    description: "Could not fetch the list of users."
+                });
+            } finally {
+                setLoading(false);
+            }
+        }
     }
-  }, [isAdmin]);
+    fetchUsers();
+  }, [isAdmin, toast]);
 
   if (authLoading || !isAdmin) {
     return (
