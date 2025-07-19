@@ -144,7 +144,7 @@ export default function CalendarPage() {
         {isAdmin && (
           <div className="mt-4 sm:mt-0 w-full sm:w-64">
              <Label htmlFor="user-select" className="flex items-center gap-2 mb-2 text-sm font-medium text-muted-foreground"><Users className="w-4 h-4"/>Select User</Label>
-            <Select onValueChange={handleAdminUserChange} value={selectedUserId || ''} disabled={users.length === 0}>
+            <Select onValueChange={handleAdminUserChange} value={selectedUserId || ''} disabled={loading || users.length === 0}>
               <SelectTrigger id="user-select" className="w-full">
                 <SelectValue placeholder="Select a user to view" />
               </SelectTrigger>
@@ -159,7 +159,7 @@ export default function CalendarPage() {
           </div>
         )}
       </div>
-      {(loading && nutrientHistory.length === 0) ? (
+      {(authLoading || loading) ? (
         <div className="mt-6 grid flex-1 gap-6 md:grid-cols-[auto_1fr]">
           <Card className="hidden md:flex items-start justify-center pt-6 w-min">
             <CardContent className="p-0">
@@ -244,5 +244,3 @@ export default function CalendarPage() {
     </div>
   );
 }
-
-    

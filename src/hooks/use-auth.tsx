@@ -47,14 +47,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (fbUser) => {
       setLoading(true);
-      setFirebaseUser(fbUser);
-      setUser(null);
-      setIdToken(null);
-      setIsAdmin(false);
-
       if (fbUser) {
-        // We have a firebase user, now fetch their profile from Firestore
+        setFirebaseUser(fbUser);
         const userDocRef = doc(db, 'users', fbUser.uid);
+        
+        // Use onSnapshot to listen for real-time changes to user role
         const unsubscribeFirestore = onSnapshot(userDocRef, async (userDoc) => {
           if (userDoc.exists()) {
             const dbUser = userDoc.data();
@@ -66,20 +63,43 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               email: dbUser.email || fbUser.email || '',
               role: userIsAdmin ? 'admin' : 'user',
             };
+            
             setUser(appUser);
             setIsAdmin(userIsAdmin);
+            
+            // Fetch token after user data is confirmed
+            try {
+              const token = await fbUser.getIdToken(true); // Force refresh token
+              setIdToken(token);
+            } catch (error) {
+              console.error("Error fetching ID token:", error);
+              // Handle token fetching error if necessary
+              setIdToken(null);
+            }
 
-            // NOW get the token, ensuring user data is loaded first
-            const token = await fbUser.getIdToken();
-            setIdToken(token);
+          } else {
+             // Case where user exists in Auth but not in Firestore.
+             // This could happen on signup before the doc is created.
+             // We'll treat them as a non-admin user for now.
+             setUser({
+                 uid: fbUser.uid,
+                 name: fbUser.displayName || '',
+                 email: fbUser.email || '',
+                 role: 'user'
+             });
+             setIsAdmin(false);
           }
-          // Only set loading to false after all user data and token is fetched
+           // Set loading to false only after all async operations are done
           setLoading(false);
         });
-        
+
         return () => unsubscribeFirestore();
       } else {
-        // No user is logged in
+        // No user is logged in, reset all state
+        setUser(null);
+        setFirebaseUser(null);
+        setIdToken(null);
+        setIsAdmin(false);
         setLoading(false);
       }
     });
@@ -134,5 +154,3 @@ export const useAuth = () => {
     }
     return context;
 };
-
-    
