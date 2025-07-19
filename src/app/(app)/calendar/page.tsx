@@ -63,10 +63,7 @@ export default function CalendarPage() {
     const fetchInitialData = async () => {
       setLoading(true);
       if (isAdmin) {
-          if (!idToken) {
-              setLoading(false);
-              return;
-          }
+          if (!idToken) return;
           try {
               const res = await fetch('/api/admin/users', {
                   headers: { 'Authorization': `Bearer ${idToken}` }
@@ -77,6 +74,7 @@ export default function CalendarPage() {
               }
               const data: AllUsersOutput = await res.json();
               setUsers(data.users);
+              // Set the default selection to the logged-in admin user if they exist in the list
               if (user && data.users.some(u => u.uid === user.uid)) {
                   setSelectedUserId(user.uid);
               } else if (data.users.length > 0) {
@@ -85,19 +83,18 @@ export default function CalendarPage() {
           } catch (err: any) {
               console.error("Failed to fetch users:", err);
               toast({ variant: 'destructive', title: 'Error', description: err.message || 'Could not load the list of users.' });
-          } finally {
-              setLoading(false); // Ensure loading is false after admin fetch
+              setUsers([]); // Clear users on error
           }
       } else if (user) {
           setSelectedUserId(user.uid);
-          setLoading(false); // Not an admin, just set user and stop loading
-      } else {
-        setLoading(false); // No user, stop loading
       }
+      setLoading(false); 
     };
     
-    if (!authLoading) {
+    if (!authLoading && user) {
         fetchInitialData();
+    } else if (!authLoading) {
+        setLoading(false);
     }
   }, [authLoading, isAdmin, user, idToken, toast]);
 
@@ -154,7 +151,7 @@ export default function CalendarPage() {
           </div>
         )}
       </div>
-      {isDataLoading ? (
+      {isDataLoading && (!selectedData) ? (
         <div className="mt-6 grid flex-1 gap-6 md:grid-cols-[auto_1fr]">
           <Card className="hidden md:flex items-start justify-center pt-6 w-min">
             <CardContent className="p-0">
@@ -229,7 +226,7 @@ export default function CalendarPage() {
                 </div>
             ) : (
                 <div className="flex items-center justify-center h-full min-h-64 text-center">
-                    <p className="text-muted-foreground">{isAdmin && users.length === 0 ? 'No users found in the system.' : 'Select a highlighted day to see nutrient details.'}</p>
+                    <p className="text-muted-foreground">{isAdmin && users.length === 0 && !isDataLoading ? 'No users found in the system.' : 'Select a highlighted day to see nutrient details.'}</p>
                 </div>
             )}
           </CardContent>

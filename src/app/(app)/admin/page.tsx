@@ -47,8 +47,8 @@ function UserDataModal({ user, token }: { user: UserType, token: string | null }
   useEffect(() => {
     async function fetchHistory() {
       if (!token) {
-        setLoading(false);
         toast({ variant: 'destructive', title: 'Authentication Error', description: 'Could not authenticate the request.' });
+        setLoading(false);
         return;
       }
       setLoading(true);
@@ -207,7 +207,6 @@ export default function AdminPage() {
   useEffect(() => {
     const fetchUsers = async () => {
         if (!isAdmin || !idToken) {
-            setLoading(false);
             return;
         }
 
@@ -236,8 +235,10 @@ export default function AdminPage() {
         }
     };
     
-    if (!authLoading) {
+    if (!authLoading && isAdmin) {
       fetchUsers();
+    } else if (!authLoading && !isAdmin) {
+      setLoading(false);
     }
   }, [authLoading, isAdmin, idToken, toast]);
 

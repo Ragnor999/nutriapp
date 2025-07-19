@@ -44,60 +44,74 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isAdmin, setIsAdmin] = useState(false);
   const router = useRouter();
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
-      setLoading(true);
-      if (fbUser) {
-        setFirebaseUser(fbUser);
-        const userDocRef = doc(db, 'users', fbUser.uid);
-        
-        // Use onSnapshot to listen for real-time changes to the user's role
-        const unsubscribeFirestore = onSnapshot(userDocRef, async (docSnap) => {
+  const handleAuthStateChange = useCallback(async (fbUser: FirebaseUser | null) => {
+    setLoading(true);
+    if (fbUser) {
+      setFirebaseUser(fbUser);
+      const userDocRef = doc(db, 'users', fbUser.uid);
+      
+      const unsubscribeFirestore = onSnapshot(userDocRef, async (docSnap) => {
           if (docSnap.exists()) {
-            const dbUser = docSnap.data();
-            const userIsAdmin = dbUser.role === 'admin';
-            
-            const appUser: User = {
-              uid: fbUser.uid,
-              name: dbUser.name || fbUser.displayName || '',
-              email: dbUser.email || fbUser.email || '',
-              role: userIsAdmin ? 'admin' : 'user',
-            };
-            setUser(appUser);
-            setIsAdmin(userIsAdmin);
+              const dbUser = docSnap.data();
+              const userIsAdmin = dbUser.role === 'admin';
+              
+              const appUser: User = {
+                  uid: fbUser.uid,
+                  name: dbUser.name || fbUser.displayName || '',
+                  email: dbUser.email || fbUser.email || '',
+                  role: userIsAdmin ? 'admin' : 'user',
+              };
+              
+              setUser(appUser);
+              setIsAdmin(userIsAdmin);
 
-            // Force refresh the token to get the latest custom claims if they were changed
-            const token = await fbUser.getIdToken(true);
-            setIdToken(token);
-            setLoading(false);
+              try {
+                  const token = await fbUser.getIdToken(true);
+                  setIdToken(token);
+              } catch (tokenError) {
+                  console.error("Error getting ID token:", tokenError);
+                  // Handle token error if necessary, maybe sign out
+                  setUser(null);
+                  setFirebaseUser(null);
+                  setIdToken(null);
+                  setIsAdmin(false);
+              } finally {
+                  setLoading(false);
+              }
           } else {
-            // User authenticated but not in Firestore yet (e.g., during signup)
-            setUser({
-              uid: fbUser.uid,
-              name: fbUser.displayName || '',
-              email: fbUser.email || '',
-              role: 'user',
-            });
-            setIsAdmin(false);
-            const token = await fbUser.getIdToken();
-            setIdToken(token);
-            setLoading(false);
+              // This case can happen briefly during signup before the user doc is created.
+              // We'll set a basic user object and wait for the doc to be created, which will trigger another snapshot.
+              setUser({
+                  uid: fbUser.uid,
+                  name: fbUser.displayName || '',
+                  email: fbUser.email || '',
+                  role: 'user',
+              });
+              setIsAdmin(false);
+              const token = await fbUser.getIdToken();
+              setIdToken(token);
+              setLoading(false);
           }
-        });
-        
-        return () => unsubscribeFirestore();
+      }, (error) => {
+          console.error("Firestore snapshot error:", error);
+          setLoading(false);
+          // Handle error, maybe sign out
+      });
 
-      } else {
-        setUser(null);
-        setFirebaseUser(null);
-        setIdToken(null);
-        setIsAdmin(false);
-        setLoading(false);
-      }
-    });
-
-    return () => unsubscribe();
+      return () => unsubscribeFirestore();
+    } else {
+      setUser(null);
+      setFirebaseUser(null);
+      setIdToken(null);
+      setIsAdmin(false);
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, handleAuthStateChange);
+    return () => unsubscribeAuth();
+  }, [handleAuthStateChange]);
 
 
   const login = (email: string, pass: string) => {
