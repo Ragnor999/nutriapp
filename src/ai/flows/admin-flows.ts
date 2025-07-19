@@ -106,9 +106,8 @@ const getUserNutrientHistoryFlow = ai.defineFlow(
     outputSchema: UserNutrientHistoryOutputSchema,
   },
   async ({ userId }) => {
-    const historyRef = db.collection('nutrientHistory');
-    const q = historyRef.where('userId', '==', userId);
-    const querySnapshot = await q.get();
+    const historyRef = db.collection('users').doc(userId).collection('nutrientHistory');
+    const querySnapshot = await historyRef.get();
 
     const history: NutrientData[] = [];
     querySnapshot.forEach((doc) => {

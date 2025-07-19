@@ -1,7 +1,7 @@
-import { collection, addDoc, query, where, getDocs, Timestamp } from "firebase/firestore";
+import { collection, addDoc, Timestamp } from "firebase/firestore";
 import { db } from './firebase';
 import type { ParsedAnalysis } from "@/components/NutrientAnalysis";
-import type { NutrientData, MacroNutrients } from "./types";
+import type { MacroNutrients } from "./types";
 
 // Save nutrient data for a specific user
 export const saveNutrientData = async (userId: string, data: ParsedAnalysis) => {
@@ -12,12 +12,13 @@ export const saveNutrientData = async (userId: string, data: ParsedAnalysis) => 
   };
 
   const docData = {
-    userId: userId, // <<< This was the missing field
     date: Timestamp.now(),
     calories: data.calories,
     macros,
     micros: data.micros,
   };
   
-  await addDoc(collection(db, "nutrientHistory"), docData);
+  // Save to the sub-collection within the user's document
+  const historyCollectionRef = collection(db, 'users', userId, 'nutrientHistory');
+  await addDoc(historyCollectionRef, docData);
 };
