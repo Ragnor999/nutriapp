@@ -4,38 +4,51 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, User, Calendar, BarChart2, Eye } from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { User, Calendar, Eye, Utensils, ChevronRight } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { getAllUsers, AllUsersOutput, getUserNutrientHistory, UserNutrientHistoryOutput } from '@/ai/flows/admin-flows';
+import { getAllUsers, AllUsersOutput, getUserNutrientHistory } from '@/ai/flows/admin-flows';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Calendar as UICalendar } from '@/components/ui/calendar';
 import type { NutrientData } from '@/lib/types';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
-import { CheckCircle } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
+import { NutrientAnalysis, type ParsedAnalysis } from '@/components/NutrientAnalysis';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarIcon } from 'lucide-react';
+import { format } from 'date-fns';
+import { Calendar as UICalendar } from '@/components/ui/calendar';
+import { cn } from '@/lib/utils';
 
 type UserType = AllUsersOutput['users'][0];
+
+// Convert NutrientData to the ParsedAnalysis format expected by the component
+const toParsedAnalysis = (data: NutrientData): ParsedAnalysis => {
+  return {
+    calories: data.calories,
+    macros: [
+      { name: 'Protein', value: data.macros.protein },
+      { name: 'Carbs', value: data.macros.carbohydrates },
+      { name: 'Fat', value: data.macros.fat },
+    ],
+    micros: data.micros,
+  };
+};
 
 function UserDataModal({ user }: { user: UserType }) {
   const [loading, setLoading] = useState(true);
   const [history, setHistory] = useState<NutrientData[]>([]);
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [selectedEntry, setSelectedEntry] = useState<NutrientData | null>(null);
+  const [date, setDate] = useState<Date | undefined>();
 
   useEffect(() => {
     setLoading(true);
     getUserNutrientHistory(user.uid)
       .then((data) => {
-        setHistory(data.history);
+        const sortedHistory = data.history.sort((a, b) => b.date.getTime() - a.date.getTime());
+        setHistory(sortedHistory);
+        if (sortedHistory.length > 0) {
+            setSelectedEntry(sortedHistory[0]);
+        }
         setLoading(false);
       })
       .catch((err) => {
@@ -44,35 +57,22 @@ function UserDataModal({ user }: { user: UserType }) {
       });
   }, [user.uid]);
 
-  const selectedData = history.find((entry) => {
-    if (!selectedDate) return false;
-    const entryDate = entry.date;
-    return (
-      entryDate.getDate() === selectedDate.getDate() &&
-      entryDate.getMonth() === selectedDate.getMonth() &&
-      entryDate.getFullYear() === selectedDate.getFullYear()
-    );
-  });
-  
-  const chartData = selectedData ? [
-      { name: 'Protein', value: selectedData.macros.protein },
-      { name: 'Carbs', value: selectedData.macros.carbohydrates },
-      { name: 'Fat', value: selectedData.macros.fat },
-  ] : [];
-
+  const filteredHistory = history.filter(entry => 
+      !date || format(entry.date, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')
+  );
 
   return (
-    <DialogContent className="max-w-4xl h-[80vh]">
+    <DialogContent className="max-w-6xl h-[90vh] flex flex-col">
       <DialogHeader>
         <DialogTitle className="font-headline flex items-center gap-2">
             <User className="w-6 h-6" />
             Nutrient History for {user.displayName || user.email}
         </DialogTitle>
         <DialogDescription>
-            Browse the user's recorded meal entries and nutrient data.
+            Browse the user's recorded meal entries and view the detailed analysis.
         </DialogDescription>
       </DialogHeader>
-      {loading ? (
+       {loading ? (
         <div className="flex items-center justify-center h-full">
             <Skeleton className="w-full h-1/2" />
         </div>
@@ -83,59 +83,74 @@ function UserDataModal({ user }: { user: UserType }) {
             <p className="text-muted-foreground text-sm">This user has not saved any meal analyses yet.</p>
         </div>
       ) : (
-         <div className="grid md:grid-cols-[350px_1fr] gap-6 mt-4 h-full overflow-hidden">
-            <div className="flex items-start justify-center pt-6 border rounded-lg">
-                <UICalendar
-                    mode="single"
-                    selected={selectedDate}
-                    onSelect={setSelectedDate}
-                    className="p-0"
-                    modifiers={{ hasData: history.map(h => h.date) }}
-                    modifiersStyles={{ hasData: { color: 'hsl(var(--primary-foreground))', backgroundColor: 'hsl(var(--primary))', opacity: 0.8 }}}
-                />
+         <div className="grid md:grid-cols-[320px_1fr] gap-6 mt-4 flex-1 overflow-hidden">
+            <div className="border rounded-lg flex flex-col">
+                <div className="p-4 border-b">
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <Button
+                            variant={"outline"}
+                            className={cn(
+                                "w-full justify-start text-left font-normal",
+                                !date && "text-muted-foreground"
+                            )}
+                            >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {date ? format(date, "PPP") : <span>Filter by date...</span>}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                            <UICalendar
+                            mode="single"
+                            selected={date}
+                            onSelect={setDate}
+                            initialFocus
+                            />
+                        </PopoverContent>
+                    </Popover>
+                    {date && <Button variant="ghost" size="sm" className="w-full mt-2" onClick={() => setDate(undefined)}>Clear Filter</Button>}
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                   {filteredHistory.length > 0 ? (
+                        <ul className="divide-y">
+                            {filteredHistory.map((entry, index) => (
+                                <li key={index}>
+                                    <button
+                                        onClick={() => setSelectedEntry(entry)}
+                                        className={cn(
+                                            "w-full text-left p-4 hover:bg-muted/50 transition-colors flex justify-between items-center",
+                                            selectedEntry?.date === entry.date && "bg-muted"
+                                        )}
+                                    >
+                                        <div>
+                                            <p className="font-semibold">{format(entry.date, 'PPP')}</p>
+                                            <p className="text-sm text-muted-foreground">{format(entry.date, 'p')}</p>
+                                        </div>
+                                        <ChevronRight className="w-5 h-5 text-muted-foreground"/>
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                   ): (
+                     <div className="p-4 text-center text-muted-foreground text-sm">No entries for the selected date.</div>
+                   )}
+                </div>
             </div>
-            <Card className="h-full overflow-y-auto">
-                <CardHeader>
-                    <CardTitle className="font-headline">
-                    {selectedDate ? selectedDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : 'Select a date'}
-                    </CardTitle>
-                    <CardDescription>
-                        {selectedData ? `Est. ${selectedData.calories} calories` : 'No data for this day.'}
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    {selectedData ? (
-                        <div className="space-y-6">
-                            <div>
-                                <h3 className="font-semibold text-md mb-2 font-headline flex items-center gap-2"><BarChart2 className="w-5 h-5" />Macronutrients (g)</h3>
-                                <ResponsiveContainer width="100%" height={150}>
-                                    <BarChart data={chartData} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
-                                        <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false}/>
-                                        <YAxis fontSize={12} tickLine={false} axisLine={false}/>
-                                        <Tooltip cursor={{ fill: 'hsl(var(--muted))' }} />
-                                        <Bar dataKey="value" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </div>
-                            <div>
-                                <h3 className="font-semibold text-md mb-2 font-headline">Micronutrients</h3>
-                                <ul className="space-y-2">
-                                {selectedData.micros.map((item, index) => (
-                                        <li key={index} className="flex items-start text-sm">
-                                            <CheckCircle className="h-4 w-4 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
-                                            <span>{item}</span>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        </div>
-                    ) : (
-                         <div className="flex items-center justify-center h-64 text-center">
-                            <p className="text-muted-foreground">Select a highlighted day to see nutrient details.</p>
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
+            <div className="overflow-y-auto">
+                 {selectedEntry ? (
+                    <NutrientAnalysis parsedData={toParsedAnalysis(selectedEntry)} />
+                 ) : (
+                    <Card className="h-full flex flex-col items-center justify-center text-center">
+                        <Utensils className="w-12 h-12 text-muted-foreground" />
+                        <CardHeader>
+                            <CardTitle className="font-headline">Select an Entry</CardTitle>
+                            <CardDescription>
+                                Choose a meal entry from the left to see the detailed nutrient analysis.
+                            </CardDescription>
+                        </CardHeader>
+                    </Card>
+                 )}
+            </div>
          </div>
       )}
     </DialogContent>
@@ -208,7 +223,7 @@ export default function AdminPage() {
                             <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                             <TableCell className="hidden md:table-cell"><Skeleton className="h-5 w-32" /></TableCell>
                             <TableCell className="hidden md:table-cell"><Skeleton className="h-5 w-20" /></TableCell>
-                            <TableCell><Skeleton className="h-8 w-8 rounded-full" /></TableCell>
+                            <TableCell><Skeleton className="h-8 w-24 rounded-md" /></TableCell>
                         </TableRow>
                         ))
                     ) : (

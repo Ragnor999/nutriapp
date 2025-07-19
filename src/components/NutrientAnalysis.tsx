@@ -6,6 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'recharts';
 import { useEffect, useMemo } from 'react';
 import { CheckCircle, Flame, Beef, Wheat, Droplets } from 'lucide-react';
+import type { NutrientData } from '@/lib/types';
+
 
 export interface ParsedAnalysis {
   macros: { name: string; value: number }[];
@@ -14,11 +16,12 @@ export interface ParsedAnalysis {
 }
 
 interface NutrientAnalysisProps {
-  analysis: AnalyzeFoodPhotoOutput;
-  onParsed: (parsedData: ParsedAnalysis) => void;
+  analysis?: AnalyzeFoodPhotoOutput;
+  parsedData?: ParsedAnalysis;
+  onParsed?: (parsedData: ParsedAnalysis) => void;
 }
 
-const parseAnalysis = (text: string): ParsedAnalysis => {
+const parseAnalysisFromText = (text: string): ParsedAnalysis => {
     const macros: { name: string; value: number }[] = [];
     let micros: string[] = [];
     let calories = 0;
@@ -62,12 +65,28 @@ const parseAnalysis = (text: string): ParsedAnalysis => {
     return { macros, micros, calories };
 };
 
-export function NutrientAnalysis({ analysis, onParsed }: NutrientAnalysisProps) {
-  const parsedData = useMemo(() => parseAnalysis(analysis.nutrientAnalysis), [analysis]);
+
+export function NutrientAnalysis({ analysis, parsedData: initialParsedData, onParsed }: NutrientAnalysisProps) {
+  const parsedData = useMemo(() => {
+    if (initialParsedData) {
+      return initialParsedData;
+    }
+    if (analysis) {
+      return parseAnalysisFromText(analysis.nutrientAnalysis);
+    }
+    return null;
+  }, [analysis, initialParsedData]);
+
 
   useEffect(() => {
-    onParsed(parsedData);
+    if (parsedData && onParsed) {
+      onParsed(parsedData);
+    }
   }, [parsedData, onParsed]);
+
+  if (!parsedData) {
+    return null; // Or a loading/error state
+  }
 
   const { macros, micros, calories } = parsedData;
 
