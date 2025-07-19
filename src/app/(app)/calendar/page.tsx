@@ -58,49 +58,48 @@ export default function CalendarPage() {
       setLoading(false);
     }
   }, [idToken, toast]);
-  
-  const fetchUsers = useCallback(async () => {
-      if (!idToken) return;
-      try {
-        const res = await fetch('/api/admin/users', {
-            headers: { 'Authorization': `Bearer ${idToken}` }
-        });
-        if (!res.ok) {
-            const errorData = await res.json();
-            throw new Error(errorData.message || "Failed to fetch users");
-        }
-        const data: AllUsersOutput = await res.json();
-        setUsers(data.users);
-        
-        // Default to selecting the admin's own calendar
-        if (user && data.users.some(u => u.uid === user.uid)) {
-            setSelectedUserId(user.uid);
-        } else if (data.users.length > 0) {
-            setSelectedUserId(data.users[0].uid);
-        } else {
-             setLoading(false);
-        }
-
-      } catch (err: any) {
-        console.error("Failed to fetch users:", err);
-        toast({ variant: 'destructive', title: 'Error', description: err.message || 'Could not load the list of users.' });
-        setLoading(false); // Stop loading on error
-      }
-  }, [idToken, toast, user]);
 
   useEffect(() => {
-    if (authLoading) {
+    const fetchInitialData = async () => {
       setLoading(true);
-      return;
+      if (isAdmin) {
+          if (!idToken) {
+              setLoading(false);
+              return;
+          }
+          try {
+              const res = await fetch('/api/admin/users', {
+                  headers: { 'Authorization': `Bearer ${idToken}` }
+              });
+              if (!res.ok) {
+                  const errorData = await res.json();
+                  throw new Error(errorData.message || "Failed to fetch users");
+              }
+              const data: AllUsersOutput = await res.json();
+              setUsers(data.users);
+              if (user && data.users.some(u => u.uid === user.uid)) {
+                  setSelectedUserId(user.uid);
+              } else if (data.users.length > 0) {
+                  setSelectedUserId(data.users[0].uid);
+              }
+          } catch (err: any) {
+              console.error("Failed to fetch users:", err);
+              toast({ variant: 'destructive', title: 'Error', description: err.message || 'Could not load the list of users.' });
+          } finally {
+              setLoading(false); // Ensure loading is false after admin fetch
+          }
+      } else if (user) {
+          setSelectedUserId(user.uid);
+          setLoading(false); // Not an admin, just set user and stop loading
+      } else {
+        setLoading(false); // No user, stop loading
+      }
+    };
+    
+    if (!authLoading) {
+        fetchInitialData();
     }
-    if (isAdmin) {
-      fetchUsers();
-    } else if (user) {
-      setSelectedUserId(user.uid);
-    } else {
-      setLoading(false);
-    }
-  }, [authLoading, isAdmin, user, fetchUsers]);
+  }, [authLoading, isAdmin, user, idToken, toast]);
 
 
   useEffect(() => {
@@ -110,7 +109,7 @@ export default function CalendarPage() {
   }, [selectedUserId, fetchHistory]);
 
   const handleAdminUserChange = (userId: string) => {
-    setNutrientHistory([]); // Clear old history while new history is loading
+    setNutrientHistory([]); 
     setSelectedUserId(userId);
   };
 
