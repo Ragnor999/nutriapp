@@ -11,7 +11,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { getAuth } from 'firebase-admin/auth';
 import { initializeApp, getApps, cert, ServiceAccount } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, query, where, collection, getDocs } from 'firebase-admin/firestore';
 import type { NutrientData, MacroNutrients } from '@/lib/types';
 import { Timestamp } from 'firebase-admin/firestore';
 import adminSdkConfig from '../../../firebase-adminsdk.json';
@@ -106,8 +106,11 @@ const getUserNutrientHistoryFlow = ai.defineFlow(
     outputSchema: UserNutrientHistoryOutputSchema,
   },
   async ({ userId }) => {
-    const historyRef = db.collection('users').doc(userId).collection('nutrientHistory');
-    const querySnapshot = await historyRef.get();
+    // Query the top-level 'nutrientHistory' collection
+    const historyRef = collection(db, 'nutrientHistory');
+    // Filter documents where 'userId' matches the requested user's UID
+    const q = query(historyRef, where('userId', '==', userId));
+    const querySnapshot = await getDocs(q);
 
     const history: NutrientData[] = [];
     querySnapshot.forEach((doc) => {

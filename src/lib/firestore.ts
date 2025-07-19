@@ -12,13 +12,14 @@ export const saveNutrientData = async (userId: string, data: ParsedAnalysis) => 
   };
 
   const docData = {
+    userId, // Include the userId in the document
     date: Timestamp.now(),
     calories: data.calories,
     macros,
     micros: data.micros,
   };
   
-  // Save to the sub-collection within the user's document
-  const historyCollectionRef = collection(db, 'users', userId, 'nutrientHistory');
+  // Save to the top-level 'nutrientHistory' collection
+  const historyCollectionRef = collection(db, 'nutrientHistory');
   await addDoc(historyCollectionRef, docData);
 };
