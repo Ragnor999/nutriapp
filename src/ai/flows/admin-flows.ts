@@ -105,9 +105,8 @@ const getUserNutrientHistoryFlow = ai.defineFlow(
     outputSchema: UserNutrientHistoryOutputSchema,
   },
   async ({ userId }) => {
-    // Query the top-level 'nutrientHistory' collection
     const historyRef = db.collection('nutrientHistory');
-    // Filter documents where 'userId' matches the requested user's UID
+    // Correctly query the collection using a 'where' clause for the Admin SDK
     const querySnapshot = await historyRef.where('userId', '==', userId).get();
 
     const history: NutrientData[] = [];

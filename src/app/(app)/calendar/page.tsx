@@ -26,69 +26,63 @@ export default function CalendarPage() {
 
   const fetchHistory = useCallback(async (userId: string) => {
     setLoading(true);
-    setNutrientHistory([]);
+    setNutrientHistory([]); // Clear previous history
     try {
       const data = await getUserNutrientHistory(userId);
-      setNutrientHistory(data.history);
+      // Sort history immediately after fetching
+      const sortedHistory = data.history.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setNutrientHistory(sortedHistory);
     } catch (err) {
       console.error("Failed to fetch nutrient history:", err);
-      setNutrientHistory([]); // Clear history on error
+      setNutrientHistory([]);
     } finally {
       setLoading(false);
     }
   }, []);
-  
-  // This single effect handles all data fetching logic to avoid race conditions.
+
+  // Simplified data fetching logic in a single effect
   useEffect(() => {
-    // Wait until authentication is resolved
+    // Don't do anything until auth state is resolved
     if (authLoading) {
-      setLoading(true);
       return;
     }
 
-    // Handle admin user flow
     if (isAdmin) {
       setLoading(true);
       getAllUsers()
         .then((data) => {
           setUsers(data.users);
-          // If a user is already selected, keep them. Otherwise, default to the first user.
-          if (!selectedUserId && data.users.length > 0) {
-            const firstUserId = data.users[0].uid;
-            setSelectedUserId(firstUserId);
-            fetchHistory(firstUserId);
-          } else if (selectedUserId) {
-            // A user was already selected, fetch their history
-             fetchHistory(selectedUserId);
+          // If a user is already selected, keep them. Otherwise, default to the first user if they exist.
+          const finalUserId = selectedUserId || (data.users.length > 0 ? data.users[0].uid : null);
+          if (finalUserId) {
+            setSelectedUserId(finalUserId);
+            fetchHistory(finalUserId);
           } else {
-             // Admin, but no users exist
-             setLoading(false);
-             setNutrientHistory([]);
+            // No users exist, so stop loading
+            setLoading(false);
           }
         })
         .catch((err) => {
           console.error("Failed to fetch users:", err);
           setLoading(false);
         });
-    } 
-    // Handle regular user flow
-    else if (user) {
+    } else if (user) {
+      // Regular user flow
       setSelectedUserId(user.uid);
       fetchHistory(user.uid);
-    } 
-    // Handle case where there is no user and it's not loading (logged out)
-    else {
-        setLoading(false);
+    } else {
+      // Logged out
+      setLoading(false);
     }
   }, [authLoading, user, isAdmin]);
 
-  // This effect runs only when the selected user changes (for admins)
-  useEffect(() => {
-    if (isAdmin && selectedUserId) {
-      fetchHistory(selectedUserId);
+  // Effect specifically for admins to react to changing the selected user
+  const handleAdminUserChange = (userId: string) => {
+    if (isAdmin) {
+      setSelectedUserId(userId);
+      fetchHistory(userId);
     }
-  }, [isAdmin, selectedUserId, fetchHistory]);
-
+  };
 
   const selectedData = date ? nutrientHistory.find(entry => isSameDay(new Date(entry.date), date)) : undefined;
 
@@ -114,7 +108,7 @@ export default function CalendarPage() {
         {isAdmin && (
           <div className="mt-4 sm:mt-0 w-full sm:w-64">
              <Label htmlFor="user-select" className="flex items-center gap-2 mb-2 text-sm font-medium text-muted-foreground"><Users className="w-4 h-4"/>Select User</Label>
-            <Select onValueChange={setSelectedUserId} value={selectedUserId || ''} disabled={users.length === 0}>
+            <Select onValueChange={handleAdminUserChange} value={selectedUserId || ''} disabled={users.length === 0}>
               <SelectTrigger id="user-select" className="w-full">
                 <SelectValue placeholder="Select a user to view" />
               </SelectTrigger>
@@ -212,5 +206,4 @@ export default function CalendarPage() {
       )}
     </div>
   );
-
-    
+}
