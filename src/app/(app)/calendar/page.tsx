@@ -20,95 +20,107 @@ type UserType = AllUsersOutput['users'][0];
 export default function CalendarPage() {
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [nutrientHistory, setNutrientHistory] = useState<NutrientData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [users, setUsers] = useState<UserType[]>([]);
+  const [usersLoading, setUsersLoading] = useState(true);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const { user, isAdmin, idToken, loading: authLoading } = useAuth();
   const { toast } = useToast();
 
-  const fetchHistory = useCallback(async (userIdToFetch: string) => {
-    if (!userIdToFetch || !idToken) {
-      setNutrientHistory([]);
-      return;
-    }
-    setLoading(true);
-    try {
-      const response = await fetch(`/api/admin/history?userId=${userIdToFetch}`, {
-        headers: { 'Authorization': `Bearer ${idToken}` }
-      });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to fetch history');
-      }
-      const data: UserNutrientHistoryOutput = await response.json();
-      const historyWithDates = data.history.map((item: any) => ({
-        ...item,
-        date: new Date(item.date),
-      }));
-      setNutrientHistory(historyWithDates);
-    } catch (err: any) {
-      console.error("Failed to fetch nutrient history:", err);
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: err.message || 'Could not load nutrient history.'
-      });
-      setNutrientHistory([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [idToken, toast]);
-
+  // Effect to fetch the list of users if the current user is an admin
   useEffect(() => {
-    const fetchInitialData = async () => {
-      setLoading(true);
-      if (isAdmin) {
-          if (!idToken) return;
-          try {
-              const res = await fetch('/api/admin/users', {
-                  headers: { 'Authorization': `Bearer ${idToken}` }
-              });
-              if (!res.ok) {
-                  const errorData = await res.json();
-                  throw new Error(errorData.message || "Failed to fetch users");
-              }
-              const data: AllUsersOutput = await res.json();
-              setUsers(data.users);
-              // Set the default selection to the logged-in admin user if they exist in the list
-              if (user && data.users.some(u => u.uid === user.uid)) {
-                  setSelectedUserId(user.uid);
-              } else if (data.users.length > 0) {
-                  setSelectedUserId(data.users[0].uid);
-              }
-          } catch (err: any) {
-              console.error("Failed to fetch users:", err);
-              toast({ variant: 'destructive', title: 'Error', description: err.message || 'Could not load the list of users.' });
-              setUsers([]); // Clear users on error
-          }
-      } else if (user) {
-          setSelectedUserId(user.uid);
+    const fetchUsers = async () => {
+      if (!isAdmin || !idToken) return;
+      setUsersLoading(true);
+      try {
+        const res = await fetch('/api/admin/users', {
+          headers: { 'Authorization': `Bearer ${idToken}` }
+        });
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.message || "Failed to fetch users");
+        }
+        const data: AllUsersOutput = await res.json();
+        setUsers(data.users);
+      } catch (err: any) {
+        console.error("Failed to fetch users:", err);
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: err.message || 'Could not load the list of users.'
+        });
+        setUsers([]);
+      } finally {
+        setUsersLoading(false);
       }
-      setLoading(false); 
+    };
+
+    if (!authLoading) {
+      if (isAdmin) {
+        fetchUsers();
+      } else {
+        setUsersLoading(false);
+      }
+    }
+  }, [authLoading, isAdmin, idToken]); // Removed `toast` from dependencies
+
+  // Effect to set the initially selected user
+  useEffect(() => {
+    if (!usersLoading) {
+      if (isAdmin) {
+        // Default to the admin's own ID if they are in the list, otherwise the first user
+        if (user && users.some(u => u.uid === user.uid)) {
+          setSelectedUserId(user.uid);
+        } else if (users.length > 0) {
+          setSelectedUserId(users[0].uid);
+        } else {
+          setSelectedUserId(null); // No users to select
+        }
+      } else if (user) {
+        // Regular user can only see their own data
+        setSelectedUserId(user.uid);
+      }
+    }
+  }, [users, user, isAdmin, usersLoading]);
+
+  // Effect to fetch nutrient history when the selected user changes
+  useEffect(() => {
+    const fetchHistory = async () => {
+      if (!selectedUserId || !idToken) {
+        setNutrientHistory([]);
+        return;
+      }
+      setHistoryLoading(true);
+      try {
+        const response = await fetch(`/api/admin/history?userId=${selectedUserId}`, {
+          headers: { 'Authorization': `Bearer ${idToken}` }
+        });
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to fetch history');
+        }
+        const data: UserNutrientHistoryOutput = await response.json();
+        const historyWithDates = data.history.map((item: any) => ({
+          ...item,
+          date: new Date(item.date),
+        }));
+        setNutrientHistory(historyWithDates);
+      } catch (err: any) {
+        console.error("Failed to fetch nutrient history:", err);
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: err.message || 'Could not load nutrient history.'
+        });
+        setNutrientHistory([]);
+      } finally {
+        setHistoryLoading(false);
+      }
     };
     
-    if (!authLoading && user) {
-        fetchInitialData();
-    } else if (!authLoading) {
-        setLoading(false);
-    }
-  }, [authLoading, isAdmin, user, idToken, toast]);
+    fetchHistory();
+  }, [selectedUserId, idToken, toast]);
 
-
-  useEffect(() => {
-    if (selectedUserId) {
-      fetchHistory(selectedUserId);
-    }
-  }, [selectedUserId, fetchHistory]);
-
-  const handleAdminUserChange = (userId: string) => {
-    setNutrientHistory([]); 
-    setSelectedUserId(userId);
-  };
 
   const selectedData = date ? nutrientHistory.find(entry => isSameDay(new Date(entry.date), date)) : undefined;
 
@@ -122,7 +134,7 @@ export default function CalendarPage() {
   
   const selectedUserName = users.find(u => u.uid === selectedUserId)?.displayName || user?.name;
   
-  const isDataLoading = authLoading || loading;
+  const isOverallLoading = authLoading || usersLoading;
 
   return (
     <div className="flex flex-col h-full">
@@ -130,15 +142,15 @@ export default function CalendarPage() {
         <div>
             <h1 className="text-3xl font-bold tracking-tight font-headline">Nutrient Calendar</h1>
             <p className="text-muted-foreground">
-              {isAdmin && users.length > 0 && selectedUserName ? `Viewing data for ${selectedUserName}` : 'Review your past nutrient intake day by day.'}
+              {isAdmin && selectedUserName ? `Viewing data for ${selectedUserName}` : 'Review your past nutrient intake day by day.'}
             </p>
         </div>
         {isAdmin && (
           <div className="mt-4 sm:mt-0 w-full sm:w-64">
              <Label htmlFor="user-select" className="flex items-center gap-2 mb-2 text-sm font-medium text-muted-foreground"><Users className="w-4 h-4"/>Select User</Label>
-            <Select onValueChange={handleAdminUserChange} value={selectedUserId || ''} disabled={isDataLoading || users.length === 0}>
+            <Select onValueChange={setSelectedUserId} value={selectedUserId || ''} disabled={isOverallLoading || users.length === 0}>
               <SelectTrigger id="user-select" className="w-full">
-                <SelectValue placeholder="Select a user to view" />
+                <SelectValue placeholder={isOverallLoading ? "Loading users..." : "Select a user"} />
               </SelectTrigger>
               <SelectContent>
                 {users.map((u) => (
@@ -151,7 +163,7 @@ export default function CalendarPage() {
           </div>
         )}
       </div>
-      {isDataLoading && (!selectedData) ? (
+      {isOverallLoading || historyLoading ? (
         <div className="mt-6 grid flex-1 gap-6 md:grid-cols-[auto_1fr]">
           <Card className="hidden md:flex items-start justify-center pt-6 w-min">
             <CardContent className="p-0">
@@ -226,7 +238,7 @@ export default function CalendarPage() {
                 </div>
             ) : (
                 <div className="flex items-center justify-center h-full min-h-64 text-center">
-                    <p className="text-muted-foreground">{isAdmin && users.length === 0 && !isDataLoading ? 'No users found in the system.' : 'Select a highlighted day to see nutrient details.'}</p>
+                    <p className="text-muted-foreground">{isAdmin && users.length === 0 && !isOverallLoading ? 'No users found in the system.' : 'Select a highlighted day to see nutrient details.'}</p>
                 </div>
             )}
           </CardContent>
