@@ -8,10 +8,9 @@ import type { NutrientData } from '@/lib/types';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { CheckCircle, Users } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
-import { getNutrientHistory } from '@/lib/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
 import { isSameDay } from 'date-fns';
-import { getAllUsers, AllUsersOutput } from '@/ai/flows/admin-flows';
+import { getAllUsers, AllUsersOutput, getUserNutrientHistory } from '@/ai/flows/admin-flows';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 
@@ -47,9 +46,9 @@ export default function CalendarPage() {
   useEffect(() => {
     if (selectedUserId) {
       setLoading(true);
-      getNutrientHistory(selectedUserId)
+      getUserNutrientHistory(selectedUserId)
         .then(data => {
-          setNutrientHistory(data);
+          setNutrientHistory(data.history);
           setLoading(false);
         })
         .catch(err => {
@@ -61,7 +60,7 @@ export default function CalendarPage() {
       setLoading(false);
       setNutrientHistory([]);
     }
-  }, [selectedUserId, isAdmin]);
+  }, [selectedUserId]);
 
 
   const selectedData = date ? nutrientHistory.find(entry => isSameDay(entry.date, date)) : undefined;

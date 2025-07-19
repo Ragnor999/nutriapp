@@ -21,24 +21,3 @@ export const saveNutrientData = async (userId: string, data: ParsedAnalysis) => 
   
   await addDoc(collection(db, "nutrientHistory"), docData);
 };
-
-
-// Get nutrient history for a specific user
-export const getNutrientHistory = async (userId: string): Promise<NutrientData[]> => {
-  const q = query(collection(db, "nutrientHistory"), where("userId", "==", userId));
-  const querySnapshot = await getDocs(q);
-  
-  const history: NutrientData[] = [];
-  querySnapshot.forEach((doc) => {
-    const data = doc.data();
-    history.push({
-      date: (data.date as Timestamp).toDate(),
-      macros: data.macros,
-      micros: data.micros,
-      calories: data.calories,
-    });
-  });
-
-  // Sort by date descending
-  return history.sort((a, b) => b.date.getTime() - a.date.getTime());
-};
