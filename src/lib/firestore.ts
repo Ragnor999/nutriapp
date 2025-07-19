@@ -1,4 +1,4 @@
-import { collection, addDoc, Timestamp } from "firebase/firestore";
+import { collection, addDoc, Timestamp, doc, setDoc } from "firebase/firestore";
 import { db } from './firebase';
 import type { ParsedAnalysis } from "@/components/NutrientAnalysis";
 import type { MacroNutrients } from "./types";

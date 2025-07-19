@@ -12,7 +12,7 @@ import { z } from 'genkit';
 import { getAuth } from 'firebase-admin/auth';
 import { initializeApp, getApps, cert, ServiceAccount } from 'firebase-admin/app';
 import { getFirestore, query, where, collection, getDocs } from 'firebase-admin/firestore';
-import type { NutrientData, MacroNutrients } from '@/lib/types';
+import type { NutrientData } from '@/lib/types';
 import { Timestamp } from 'firebase-admin/firestore';
 import adminSdkConfig from '../../../firebase-adminsdk.json';
 
@@ -87,7 +87,7 @@ const MacroNutrientsSchema = z.object({
 });
 
 const NutrientDataSchema = z.object({
-  date: z.any(), // Accept Firestore Timestamp initially
+  date: z.date(), // Use z.date() and convert Timestamp in the flow
   macros: MacroNutrientsSchema,
   micros: z.array(z.string()),
   calories: z.number(),

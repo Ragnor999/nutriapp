@@ -25,22 +25,27 @@ export default function CalendarPage() {
   const { user, isAdmin } = useAuth();
   
   useEffect(() => {
-    if (isAdmin) {
-      getAllUsers().then(data => {
-        setUsers(data.users);
-        if (data.users.length > 0) {
-          // Default to the first user in the list for admins
-          setSelectedUserId(data.users[0].uid);
-        } else {
-          setLoading(false);
+    const fetchData = async () => {
+        setLoading(true);
+        if (isAdmin) {
+            try {
+                const data = await getAllUsers();
+                setUsers(data.users);
+                if (data.users.length > 0 && !selectedUserId) {
+                    setSelectedUserId(data.users[0].uid);
+                } else if (data.users.length === 0) {
+                   setNutrientHistory([]);
+                   setLoading(false);
+                }
+            } catch (err) {
+                console.error("Failed to fetch users:", err);
+                setLoading(false);
+            }
+        } else if (user) {
+            setSelectedUserId(user.uid);
         }
-      }).catch(err => {
-         console.error("Failed to fetch users:", err);
-         setLoading(false);
-      });
-    } else if (user) {
-      setSelectedUserId(user.uid);
-    }
+    };
+    fetchData();
   }, [user, isAdmin]);
 
   useEffect(() => {
@@ -53,17 +58,18 @@ export default function CalendarPage() {
         })
         .catch(err => {
           console.error("Failed to fetch nutrient history:", err);
+          setNutrientHistory([]); // Clear history on error
           setLoading(false);
         });
-    } else if (!isAdmin) {
-      // Handle case where non-admin has no selectedId yet, or admin has no users.
-      setLoading(false);
-      setNutrientHistory([]);
+    } else {
+        // No user selected, don't show loading, clear data.
+        setLoading(false);
+        setNutrientHistory([]);
     }
-  }, [selectedUserId, isAdmin]);
+  }, [selectedUserId]);
 
 
-  const selectedData = date ? nutrientHistory.find(entry => isSameDay(entry.date, date)) : undefined;
+  const selectedData = date ? nutrientHistory.find(entry => isSameDay(new Date(entry.date), date)) : undefined;
 
   const chartData = selectedData ? [
       { name: 'Protein', value: selectedData.macros.protein },
@@ -71,7 +77,7 @@ export default function CalendarPage() {
       { name: 'Fat', value: selectedData.macros.fat },
   ] : [];
 
-  const daysWithData = nutrientHistory.map(d => d.date);
+  const daysWithData = nutrientHistory.map(d => new Date(d.date));
   
   const selectedUserName = users.find(u => u.uid === selectedUserId)?.displayName || user?.name;
 
