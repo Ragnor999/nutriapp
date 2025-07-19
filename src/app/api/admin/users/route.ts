@@ -2,6 +2,7 @@
 import { getAllUsers } from '@/ai/flows/admin-flows';
 import { NextResponse, NextRequest } from 'next/server';
 import { getAuth } from 'firebase-admin/auth';
+import { getFirestore } from 'firebase-admin/firestore';
 import { initializeApp, getApps, cert, ServiceAccount } from 'firebase-admin/app';
 import adminSdkConfig from '../../../../../firebase-adminsdk.json';
 
@@ -11,6 +12,7 @@ if (!getApps().length) {
     credential: cert(adminSdkConfig as ServiceAccount),
   });
 }
+const db = getFirestore();
 
 export async function GET(request: NextRequest) {
   const authToken = request.headers.get('Authorization')?.split('Bearer ')[1];
@@ -20,10 +22,16 @@ export async function GET(request: NextRequest) {
   }
   
   try {
-    // Verify the token and check for admin custom claim
+    // Verify the token to get the user's UID
     const decodedToken = await getAuth().verifyIdToken(authToken);
-    if (decodedToken.admin !== true) {
-        return NextResponse.json({ message: 'Forbidden: User is not an admin' }, { status: 403 });
+    const { uid } = decodedToken;
+
+    // Check the user's role in Firestore
+    const userDocRef = db.collection('users').doc(uid);
+    const userDoc = await userDocRef.get();
+
+    if (!userDoc.exists() || userDoc.data()?.role !== 'admin') {
+      return NextResponse.json({ message: 'Forbidden: User is not an admin' }, { status: 403 });
     }
 
     // If admin, proceed to fetch all users
