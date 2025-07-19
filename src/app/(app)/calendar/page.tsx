@@ -67,42 +67,44 @@ export default function CalendarPage() {
 
   // Combined effect to handle initial data loading
   useEffect(() => {
-    if (authLoading || !idToken) {
-      return; // Wait until authentication state and token are resolved
+    // Wait until authentication state is fully resolved
+    if (authLoading) {
+      return;
     }
-
-    if (isAdmin) {
+    
+    // Once auth is resolved, decide which data to fetch
+    if (isAdmin && idToken) {
       setLoading(true);
       fetch('/api/admin/users', {
         headers: {
             'Authorization': `Bearer ${idToken}`
         }
       })
-        .then(res => {
-            if (!res.ok) throw new Error("Failed to fetch users");
-            return res.json() as Promise<AllUsersOutput>;
-        })
-        .then(data => {
-          setUsers(data.users);
-          if (data.users.length > 0) {
-            // Default to viewing the admin's own data first
-            const adminUser = data.users.find(u => u.uid === user?.uid) || data.users[0];
-            setSelectedUserId(adminUser.uid);
-            fetchHistory(adminUser.uid);
-          } else {
-            setLoading(false);
-          }
-        })
-        .catch(err => {
-          console.error("Failed to fetch users:", err);
-          toast({
-              variant: 'destructive',
-              title: 'Error',
-              description: 'Could not load the list of users.'
-          });
-          setLoading(false);
+      .then(res => {
+          if (!res.ok) throw new Error("Failed to fetch users");
+          return res.json() as Promise<AllUsersOutput>;
+      })
+      .then(data => {
+        setUsers(data.users);
+        if (data.users.length > 0) {
+          // Default to viewing the admin's own data first
+          const adminUser = data.users.find(u => u.uid === user?.uid) || data.users[0];
+          setSelectedUserId(adminUser.uid);
+          fetchHistory(adminUser.uid); // fetchHistory will set loading to false
+        } else {
+            setLoading(false); // No users, stop loading
+        }
+      })
+      .catch(err => {
+        console.error("Failed to fetch users:", err);
+        toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: 'Could not load the list of users.'
         });
-    } else if (user) {
+        setLoading(false);
+      });
+    } else if (user && idToken) {
       // Regular user flow
       setSelectedUserId(user.uid);
       fetchHistory(user.uid);
@@ -110,7 +112,7 @@ export default function CalendarPage() {
       // Not logged in or no user object
       setLoading(false);
     }
-  }, [authLoading, user, isAdmin, fetchHistory, toast, idToken]);
+  }, [authLoading, user, isAdmin, idToken, fetchHistory, toast]);
 
 
   const handleAdminUserChange = (userId: string) => {
