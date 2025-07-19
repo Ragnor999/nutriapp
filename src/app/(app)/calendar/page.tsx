@@ -128,7 +128,6 @@ export default function CalendarPage() {
                 selected={date}
                 onSelect={setDate}
                 className="p-0"
-                disabled={!selectedUserId || nutrientHistory.length === 0}
                 modifiers={{
                     hasData: daysWithData
                 }}
