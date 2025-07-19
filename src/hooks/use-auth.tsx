@@ -48,17 +48,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (fbUser) => {
       setLoading(true);
       setFirebaseUser(fbUser);
+      setUser(null);
+      setIdToken(null);
+      setIsAdmin(false);
 
       if (fbUser) {
-        const token = await fbUser.getIdToken();
-        setIdToken(token);
-
+        // We have a firebase user, now fetch their profile from Firestore
         const userDocRef = doc(db, 'users', fbUser.uid);
-        const unsubscribeFirestore = onSnapshot(userDocRef, (userDoc) => {
+        const unsubscribeFirestore = onSnapshot(userDocRef, async (userDoc) => {
           if (userDoc.exists()) {
             const dbUser = userDoc.data();
             const userIsAdmin = dbUser.role === 'admin';
-            setIsAdmin(userIsAdmin);
             
             const appUser: User = { 
               uid: fbUser.uid, 
@@ -67,19 +67,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               role: userIsAdmin ? 'admin' : 'user',
             };
             setUser(appUser);
-          } else {
-            setUser(null);
-            setIsAdmin(false);
+            setIsAdmin(userIsAdmin);
+
+            // NOW get the token, ensuring user data is loaded first
+            const token = await fbUser.getIdToken();
+            setIdToken(token);
           }
+          // Only set loading to false after all user data and token is fetched
           setLoading(false);
         });
         
         return () => unsubscribeFirestore();
       } else {
         // No user is logged in
-        setUser(null);
-        setIdToken(null);
-        setIsAdmin(false);
         setLoading(false);
       }
     });
@@ -134,3 +134,5 @@ export const useAuth = () => {
     }
     return context;
 };
+
+    

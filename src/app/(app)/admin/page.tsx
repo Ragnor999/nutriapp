@@ -198,8 +198,19 @@ export default function AdminPage() {
   const router = useRouter();
   const { toast } = useToast();
   
-  const fetchUsers = useCallback(async () => {
-    if (isAdmin && idToken) {
+  useEffect(() => {
+    // Redirect non-admins away from this page.
+    if (!authLoading && !isAdmin) {
+        router.replace('/dashboard');
+    }
+  }, [isAdmin, authLoading, router]);
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+        // Only fetch if authenticated, admin, and we have a token.
+        if (authLoading || !isAdmin || !idToken) {
+            return;
+        }
         setLoading(true);
         try {
             const response = await fetch('/api/admin/users', {
@@ -223,20 +234,11 @@ export default function AdminPage() {
         } finally {
             setLoading(false);
         }
-    }
-  }, [isAdmin, idToken, toast]);
+    };
+    
+    fetchUsers();
+  }, [authLoading, isAdmin, idToken, toast]);
 
-  useEffect(() => {
-    if (!authLoading && !isAdmin) {
-        router.replace('/dashboard');
-    }
-  }, [isAdmin, authLoading, router]);
-
-  useEffect(() => {
-    if (!authLoading && isAdmin) {
-      fetchUsers();
-    }
-  }, [fetchUsers, authLoading, isAdmin]);
 
   if (authLoading || !user) {
     return (
@@ -315,3 +317,6 @@ export default function AdminPage() {
     </>
   );
 }
+
+
+    
