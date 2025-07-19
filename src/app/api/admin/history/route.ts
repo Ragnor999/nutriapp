@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     // Check if the caller is an admin by reading their Firestore document
     const callerDocRef = db.collection('users').doc(callerUid);
     const callerDoc = await callerDocRef.get();
-    const isCallerAdmin = callerDoc.exists() && callerDoc.data()?.role === 'admin';
+    const isCallerAdmin = callerDoc.exists && callerDoc.data()?.role === 'admin';
 
     // A regular user can only access their own history.
     // An admin can access anyone's history.
