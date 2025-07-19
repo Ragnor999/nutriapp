@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar } from '@/components/ui/calendar';
 import type { NutrientData } from '@/lib/types';
@@ -22,51 +22,72 @@ export default function CalendarPage() {
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<UserType[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const { user, isAdmin } = useAuth();
-  
-  useEffect(() => {
-    const fetchData = async () => {
-        setLoading(true);
-        if (isAdmin) {
-            try {
-                const data = await getAllUsers();
-                setUsers(data.users);
-                if (data.users.length > 0 && !selectedUserId) {
-                    setSelectedUserId(data.users[0].uid);
-                } else if (data.users.length === 0) {
-                   setNutrientHistory([]);
-                   setLoading(false);
-                }
-            } catch (err) {
-                console.error("Failed to fetch users:", err);
-                setLoading(false);
-            }
-        } else if (user) {
-            setSelectedUserId(user.uid);
-        }
-    };
-    fetchData();
-  }, [user, isAdmin]);
+  const { user, isAdmin, loading: authLoading } = useAuth();
 
+  const fetchHistory = useCallback(async (userId: string) => {
+    setLoading(true);
+    setNutrientHistory([]);
+    try {
+      const data = await getUserNutrientHistory(userId);
+      setNutrientHistory(data.history);
+    } catch (err) {
+      console.error("Failed to fetch nutrient history:", err);
+      setNutrientHistory([]); // Clear history on error
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+  
+  // This single effect handles all data fetching logic to avoid race conditions.
   useEffect(() => {
-    if (selectedUserId) {
+    // Wait until authentication is resolved
+    if (authLoading) {
       setLoading(true);
-      getUserNutrientHistory(selectedUserId)
-        .then(data => {
-          setNutrientHistory(data.history);
-          setLoading(false);
+      return;
+    }
+
+    // Handle admin user flow
+    if (isAdmin) {
+      setLoading(true);
+      getAllUsers()
+        .then((data) => {
+          setUsers(data.users);
+          // If a user is already selected, keep them. Otherwise, default to the first user.
+          if (!selectedUserId && data.users.length > 0) {
+            const firstUserId = data.users[0].uid;
+            setSelectedUserId(firstUserId);
+            fetchHistory(firstUserId);
+          } else if (selectedUserId) {
+            // A user was already selected, fetch their history
+             fetchHistory(selectedUserId);
+          } else {
+             // Admin, but no users exist
+             setLoading(false);
+             setNutrientHistory([]);
+          }
         })
-        .catch(err => {
-          console.error("Failed to fetch nutrient history:", err);
-          setNutrientHistory([]); // Clear history on error
+        .catch((err) => {
+          console.error("Failed to fetch users:", err);
           setLoading(false);
         });
-    } else {
-        // No user selected, don't show loading, clear data.
+    } 
+    // Handle regular user flow
+    else if (user) {
+      setSelectedUserId(user.uid);
+      fetchHistory(user.uid);
+    } 
+    // Handle case where there is no user and it's not loading (logged out)
+    else {
         setLoading(false);
-        setNutrientHistory([]);
     }
-  }, [selectedUserId]);
+  }, [authLoading, user, isAdmin]);
+
+  // This effect runs only when the selected user changes (for admins)
+  useEffect(() => {
+    if (isAdmin && selectedUserId) {
+      fetchHistory(selectedUserId);
+    }
+  }, [isAdmin, selectedUserId, fetchHistory]);
 
 
   const selectedData = date ? nutrientHistory.find(entry => isSameDay(new Date(entry.date), date)) : undefined;
@@ -87,7 +108,7 @@ export default function CalendarPage() {
         <div>
             <h1 className="text-3xl font-bold tracking-tight font-headline">Nutrient Calendar</h1>
             <p className="text-muted-foreground">
-              {isAdmin ? `Viewing data for ${selectedUserName || '...'}` : 'Review your past nutrient intake day by day.'}
+              {isAdmin && users.length > 0 ? `Viewing data for ${selectedUserName || '...'}` : 'Review your past nutrient intake day by day.'}
             </p>
         </div>
         {isAdmin && (
@@ -110,8 +131,8 @@ export default function CalendarPage() {
       </div>
       {loading ? (
         <div className="mt-6 grid flex-1 gap-6 md:grid-cols-[auto_1fr]">
-          <Card>
-            <CardContent className="p-6 pt-6">
+          <Card className="hidden md:flex items-start justify-center pt-6 w-min">
+            <CardContent className="p-0">
                <Skeleton className="w-[300px] h-[300px]" />
             </CardContent>
           </Card>
@@ -127,7 +148,7 @@ export default function CalendarPage() {
         </div>
       ) : (
       <div className="mt-6 grid flex-1 gap-6 md:grid-cols-[auto_1fr]">
-        <Card className="flex items-start justify-center pt-6 w-min">
+        <Card className="flex-col md:flex-row flex items-start justify-center pt-6 w-full md:w-min">
             <Calendar
                 mode="single"
                 selected={date}
@@ -181,7 +202,7 @@ export default function CalendarPage() {
                     </div>
                 </div>
             ) : (
-                <div className="flex items-center justify-center h-64 text-center">
+                <div className="flex items-center justify-center h-full min-h-64 text-center">
                     <p className="text-muted-foreground">{!selectedUserId && isAdmin ? 'Select a user to view their calendar.' : 'Select a highlighted day to see nutrient details.'}</p>
                 </div>
             )}
@@ -191,4 +212,5 @@ export default function CalendarPage() {
       )}
     </div>
   );
-}
+
+    
