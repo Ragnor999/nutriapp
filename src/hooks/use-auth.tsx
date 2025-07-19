@@ -50,44 +50,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setFirebaseUser(fbUser);
 
       if (fbUser) {
-        // Get token and check custom claims
-        const tokenResult = await fbUser.getIdTokenResult(true); // Force refresh
-        const customClaimIsAdmin = tokenResult.claims.admin === true;
-        setIdToken(tokenResult.token);
+        const token = await fbUser.getIdToken();
+        setIdToken(token);
 
-        // Set up a real-time listener for the user's document in Firestore
         const userDocRef = doc(db, 'users', fbUser.uid);
         const unsubscribeFirestore = onSnapshot(userDocRef, (userDoc) => {
           if (userDoc.exists()) {
             const dbUser = userDoc.data();
-            const firestoreRoleIsAdmin = dbUser.role === 'admin';
+            const userIsAdmin = dbUser.role === 'admin';
+            setIsAdmin(userIsAdmin);
             
-            // The user is an admin if EITHER the custom claim is true OR the Firestore role is 'admin'
-            const finalIsAdmin = customClaimIsAdmin || firestoreRoleIsAdmin;
-            setIsAdmin(finalIsAdmin);
-
             const appUser: User = { 
               uid: fbUser.uid, 
-              name: dbUser.name,
+              name: dbUser.name || fbUser.displayName || '',
               email: dbUser.email || fbUser.email || '',
-              role: finalIsAdmin ? 'admin' : 'user',
+              role: userIsAdmin ? 'admin' : 'user',
             };
             setUser(appUser);
-            
-            // Sync Firestore if claim and role are out of sync
-            if (finalIsAdmin && !firestoreRoleIsAdmin) {
-                setDoc(userDocRef, { role: 'admin' }, { merge: true });
-            }
-
           } else {
-            // This case might happen during signup before the user doc is created
             setUser(null);
             setIsAdmin(false);
           }
           setLoading(false);
         });
-
-        // Return the firestore unsubscribe function to clean up the listener
+        
         return () => unsubscribeFirestore();
       } else {
         // No user is logged in

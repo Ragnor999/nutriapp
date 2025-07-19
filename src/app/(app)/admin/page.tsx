@@ -19,8 +19,6 @@ import { format } from 'date-fns';
 import { Calendar as UICalendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 
 
@@ -88,7 +86,9 @@ function UserDataModal({ user, token }: { user: UserType, token: string | null }
         setLoading(false);
       }
     }
-    fetchHistory();
+    if (user.uid && token) {
+      fetchHistory();
+    }
   }, [user.uid, toast, token]);
 
   const filteredHistory = history.filter(entry => 
@@ -191,85 +191,6 @@ function UserDataModal({ user, token }: { user: UserType, token: string | null }
   );
 }
 
-
-function MakeAdminDialog({ token, onAdminMade }: { token: string | null, onAdminMade: () => void }) {
-  const [email, setEmail] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [open, setOpen] = useState(false);
-  const { toast } = useToast();
-
-  const handleMakeAdmin = async () => {
-    if (!token) {
-      toast({ variant: 'destructive', title: 'Authentication Error' });
-      return;
-    }
-    setLoading(true);
-    try {
-      const response = await fetch('/api/admin/set-claim', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ email })
-      });
-      const result = await response.json();
-      if (!response.ok || !result.success) {
-        throw new Error(result.message || 'Failed to make user admin.');
-      }
-      toast({
-        title: 'Success',
-        description: result.message,
-      });
-      onAdminMade();
-      setOpen(false);
-      setEmail('');
-    } catch (err: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: err.message,
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <AlertDialog open={open} onOpenChange={setOpen}>
-      <AlertDialogTrigger asChild>
-        <Button size="sm">
-          <ShieldCheck className="h-4 w-4 mr-2" />
-          Make Admin
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Make User an Admin</AlertDialogTitle>
-          <AlertDialogDescription>
-            Enter the email of the user you want to grant admin privileges to. This action will grant them full access.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <div className="py-4">
-          <Input 
-            type="email" 
-            placeholder="user@example.com" 
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-        </div>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={handleMakeAdmin} disabled={loading || !email}>
-            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Confirm
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
-}
-
 export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<UserType[]>([]);
@@ -312,8 +233,10 @@ export default function AdminPage() {
   }, [isAdmin, authLoading, router]);
 
   useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
+    if (!authLoading && isAdmin) {
+      fetchUsers();
+    }
+  }, [fetchUsers, authLoading, isAdmin]);
 
   if (authLoading || !user) {
     return (
@@ -330,7 +253,6 @@ export default function AdminPage() {
           <h1 className="text-3xl font-bold tracking-tight font-headline">Admin Panel</h1>
           <p className="text-muted-foreground">Manage users and view their data.</p>
         </div>
-        <MakeAdminDialog token={idToken} onAdminMade={fetchUsers} />
       </div>
       <div className="mt-6">
         <Dialog>

@@ -5,7 +5,6 @@
  *
  * - getAllUsers - Fetches all users from Firebase Authentication.
  * - getUserNutrientHistory - Fetches nutrient history for a specific user.
- * - setAdminClaim - Sets an admin custom claim on a user.
  */
 
 import { ai } from '@/ai/genkit';
@@ -61,7 +60,7 @@ const getAllUsersFlow = ai.defineFlow(
                 email: userRecord.email,
                 displayName: firestoreData?.name || userRecord.displayName,
                 creationTime: userRecord.metadata.creationTime,
-                isAdmin: firestoreData?.role === 'admin' || userRecord.customClaims?.admin === true,
+                isAdmin: firestoreData?.role === 'admin',
             };
         })
     );
@@ -120,7 +119,7 @@ const getUserNutrientHistoryFlow = ai.defineFlow(
         calories: data.calories,
       });
     });
-
+    
     const sortedHistory = history.sort((a, b) => b.date.getTime() - a.date.getTime());
     
     return { history: sortedHistory };
@@ -129,34 +128,4 @@ const getUserNutrientHistoryFlow = ai.defineFlow(
 
 export async function getUserNutrientHistory(userId: string): Promise<UserNutrientHistoryOutput> {
     return getUserNutrientHistoryFlow({ userId });
-}
-
-// Schema for setting an admin claim
-const SetAdminClaimInputSchema = z.object({
-  email: z.string().email().describe("The email of the user to make an admin."),
-});
-
-const setAdminClaimFlow = ai.defineFlow(
-  {
-    name: 'setAdminClaimFlow',
-    inputSchema: SetAdminClaimInputSchema,
-    outputSchema: z.object({ success: z.boolean(), message: z.string() }),
-  },
-  async ({ email }) => {
-    try {
-      const user = await auth.getUserByEmail(email);
-      // Set both the custom claim and the Firestore role
-      await auth.setCustomUserClaims(user.uid, { admin: true });
-      await db.collection('users').doc(user.uid).set({ role: 'admin' }, { merge: true });
-      
-      return { success: true, message: `Successfully made ${email} an admin.` };
-    } catch (error: any) {
-      console.error('Error setting admin claim:', error);
-      return { success: false, message: error.message || 'Failed to set admin claim.' };
-    }
-  }
-);
-
-export async function setAdminClaim(email: string) {
-    return setAdminClaimFlow({ email });
 }
