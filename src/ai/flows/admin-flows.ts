@@ -11,9 +11,8 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { getAuth } from 'firebase-admin/auth';
 import { initializeApp, getApps, cert, ServiceAccount } from 'firebase-admin/app';
-import { getFirestore, query, where, collection, getDocs } from 'firebase-admin/firestore';
+import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import type { NutrientData } from '@/lib/types';
-import { Timestamp } from 'firebase-admin/firestore';
 import adminSdkConfig from '../../../firebase-adminsdk.json';
 
 
@@ -87,7 +86,7 @@ const MacroNutrientsSchema = z.object({
 });
 
 const NutrientDataSchema = z.object({
-  date: z.date(), // Use z.date() and convert Timestamp in the flow
+  date: z.date(),
   macros: MacroNutrientsSchema,
   micros: z.array(z.string()),
   calories: z.number(),
@@ -107,10 +106,9 @@ const getUserNutrientHistoryFlow = ai.defineFlow(
   },
   async ({ userId }) => {
     // Query the top-level 'nutrientHistory' collection
-    const historyRef = collection(db, 'nutrientHistory');
+    const historyRef = db.collection('nutrientHistory');
     // Filter documents where 'userId' matches the requested user's UID
-    const q = query(historyRef, where('userId', '==', userId));
-    const querySnapshot = await getDocs(q);
+    const querySnapshot = await historyRef.where('userId', '==', userId).get();
 
     const history: NutrientData[] = [];
     querySnapshot.forEach((doc) => {
