@@ -199,18 +199,15 @@ export default function AdminPage() {
   const { toast } = useToast();
   
   useEffect(() => {
-    // Redirect non-admins away from this page.
+    // This effect handles redirection based on auth state
     if (!authLoading && !isAdmin) {
         router.replace('/dashboard');
     }
   }, [isAdmin, authLoading, router]);
 
   useEffect(() => {
+    // This effect fetches users only when authenticated as an admin
     const fetchUsers = async () => {
-        // Only fetch if authenticated, admin, and we have a token.
-        if (authLoading || !isAdmin || !idToken) {
-            return;
-        }
         setLoading(true);
         try {
             const response = await fetch('/api/admin/users', {
@@ -236,11 +233,17 @@ export default function AdminPage() {
         }
     };
     
-    fetchUsers();
+    // Only run if auth is resolved, user is an admin, and we have a token.
+    if (!authLoading && isAdmin && idToken) {
+      fetchUsers();
+    } else if (!authLoading && (!isAdmin || !idToken)) {
+      // If not an admin or no token after loading, stop the loader.
+      setLoading(false);
+    }
   }, [authLoading, isAdmin, idToken, toast]);
 
 
-  if (authLoading || !user) {
+  if (authLoading) {
     return (
         <div className="flex h-full items-center justify-center">
              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
@@ -317,6 +320,3 @@ export default function AdminPage() {
     </>
   );
 }
-
-
-    

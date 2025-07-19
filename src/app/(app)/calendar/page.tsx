@@ -28,28 +28,23 @@ export default function CalendarPage() {
 
   const fetchHistory = useCallback(async (userId: string) => {
     if (!userId || !idToken) {
-        setNutrientHistory([]);
-        return;
+      setNutrientHistory([]);
+      return;
     }
     setLoading(true);
-    setNutrientHistory([]); // Clear previous history
     try {
       const response = await fetch(`/api/admin/history?userId=${userId}`, {
-        headers: {
-            'Authorization': `Bearer ${idToken}`
-        }
+        headers: { 'Authorization': `Bearer ${idToken}` }
       });
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to fetch history');
       }
       const data: UserNutrientHistoryOutput = await response.json();
-      
       const historyWithDates = data.history.map((item: any) => ({
-          ...item,
-          date: new Date(item.date),
+        ...item,
+        date: new Date(item.date),
       }));
-
       const sortedHistory = historyWithDates.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       setNutrientHistory(sortedHistory);
     } catch (err: any) {
@@ -65,61 +60,54 @@ export default function CalendarPage() {
     }
   }, [idToken, toast]);
 
-  // Combined effect to handle initial data loading
   useEffect(() => {
-    // Wait until authentication state is fully resolved
     if (authLoading) {
-      return;
+      return; // Wait for auth to resolve
     }
-    
-    // Once auth is resolved, decide which data to fetch
-    if (isAdmin && idToken) {
-      setLoading(true);
-      fetch('/api/admin/users', {
-        headers: {
-            'Authorization': `Bearer ${idToken}`
-        }
-      })
-      .then(res => {
-          if (!res.ok) throw new Error("Failed to fetch users");
-          return res.json() as Promise<AllUsersOutput>;
-      })
-      .then(data => {
-        setUsers(data.users);
-        if (data.users.length > 0) {
-          // Default to viewing the admin's own data first
-          const adminUser = data.users.find(u => u.uid === user?.uid) || data.users[0];
-          setSelectedUserId(adminUser.uid);
-          fetchHistory(adminUser.uid); // fetchHistory will set loading to false
-        } else {
-            setLoading(false); // No users, stop loading
-        }
-      })
-      .catch(err => {
-        console.error("Failed to fetch users:", err);
-        toast({
-            variant: 'destructive',
-            title: 'Error',
-            description: 'Could not load the list of users.'
-        });
-        setLoading(false);
-      });
-    } else if (user && idToken) {
-      // Regular user flow
-      setSelectedUserId(user.uid);
-      fetchHistory(user.uid);
-    } else {
-      // Not logged in or no user object
-      setLoading(false);
-    }
-  }, [authLoading, user, isAdmin, idToken, fetchHistory, toast]);
 
+    const loadData = async () => {
+      setLoading(true);
+      if (isAdmin) {
+        if (!idToken) { setLoading(false); return; }
+        try {
+          const res = await fetch('/api/admin/users', {
+            headers: { 'Authorization': `Bearer ${idToken}` }
+          });
+          if (!res.ok) throw new Error("Failed to fetch users");
+          const data: AllUsersOutput = await res.json();
+          setUsers(data.users);
+          const adminUser = data.users.find(u => u.uid === user?.uid) || (data.users.length > 0 ? data.users[0] : null);
+          if (adminUser) {
+            setSelectedUserId(adminUser.uid);
+            // fetchHistory will be triggered by selectedUserId change
+          } else {
+            setLoading(false);
+          }
+        } catch (err) {
+          console.error("Failed to fetch users:", err);
+          toast({ variant: 'destructive', title: 'Error', description: 'Could not load the list of users.' });
+          setLoading(false);
+        }
+      } else if (user) {
+        setSelectedUserId(user.uid);
+         // fetchHistory will be triggered by selectedUserId change
+      } else {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, [authLoading, isAdmin, user, idToken, toast]);
+
+  useEffect(() => {
+    if (selectedUserId) {
+      fetchHistory(selectedUserId);
+    }
+  }, [selectedUserId, fetchHistory]);
 
   const handleAdminUserChange = (userId: string) => {
-    if (isAdmin) {
-      setSelectedUserId(userId);
-      fetchHistory(userId);
-    }
+    setNutrientHistory([]); // Clear old history immediately
+    setSelectedUserId(userId);
   };
 
   const selectedData = date ? nutrientHistory.find(entry => isSameDay(new Date(entry.date), date)) : undefined;
@@ -133,6 +121,8 @@ export default function CalendarPage() {
   const daysWithData = nutrientHistory.map(d => new Date(d.date));
   
   const selectedUserName = users.find(u => u.uid === selectedUserId)?.displayName || user?.name;
+  
+  const isDataLoading = authLoading || loading;
 
   return (
     <div className="flex flex-col h-full">
@@ -146,7 +136,7 @@ export default function CalendarPage() {
         {isAdmin && (
           <div className="mt-4 sm:mt-0 w-full sm:w-64">
              <Label htmlFor="user-select" className="flex items-center gap-2 mb-2 text-sm font-medium text-muted-foreground"><Users className="w-4 h-4"/>Select User</Label>
-            <Select onValueChange={handleAdminUserChange} value={selectedUserId || ''} disabled={loading || users.length === 0}>
+            <Select onValueChange={handleAdminUserChange} value={selectedUserId || ''} disabled={isDataLoading || users.length === 0}>
               <SelectTrigger id="user-select" className="w-full">
                 <SelectValue placeholder="Select a user to view" />
               </SelectTrigger>
@@ -161,7 +151,7 @@ export default function CalendarPage() {
           </div>
         )}
       </div>
-      {(authLoading || loading) ? (
+      {isDataLoading ? (
         <div className="mt-6 grid flex-1 gap-6 md:grid-cols-[auto_1fr]">
           <Card className="hidden md:flex items-start justify-center pt-6 w-min">
             <CardContent className="p-0">
