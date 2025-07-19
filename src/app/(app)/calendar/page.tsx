@@ -36,21 +36,24 @@ export default function CalendarPage() {
     try {
       const response = await fetch(`/api/admin/history?userId=${userId}`);
       if (!response.ok) {
-        throw new Error('Failed to fetch history');
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to fetch history');
       }
       const data: UserNutrientHistoryOutput = await response.json();
-      const historyWithDates = data.history.map(item => ({
+      
+      const historyWithDates = data.history.map((item: any) => ({
           ...item,
-          date: new Date(item.date),
+          date: new Date(item.date._seconds * 1000),
       }));
+
       const sortedHistory = historyWithDates.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       setNutrientHistory(sortedHistory);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to fetch nutrient history:", err);
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Could not load nutrient history.'
+        description: err.message || 'Could not load nutrient history.'
       });
       setNutrientHistory([]);
     } finally {
@@ -74,10 +77,9 @@ export default function CalendarPage() {
         .then(data => {
           setUsers(data.users);
           if (data.users.length > 0) {
-            // Set the first user as default, but don't fetch their history yet.
-            // Let the user explicitly select someone.
-            setSelectedUserId(data.users[0].uid);
-            fetchHistory(data.users[0].uid);
+            const defaultUserId = data.users[0].uid;
+            setSelectedUserId(defaultUserId);
+            fetchHistory(defaultUserId);
           } else {
             setLoading(false);
           }

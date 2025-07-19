@@ -49,14 +49,15 @@ function UserDataModal({ user }: { user: UserType }) {
         try {
             const response = await fetch(`/api/admin/history?userId=${user.uid}`);
             if (!response.ok) {
-                throw new Error('Failed to fetch history');
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to fetch history');
             }
             const data: UserNutrientHistoryOutput = await response.json();
             
-            // API returns dates as strings, so we need to convert them back to Date objects
-            const historyWithDates = data.history.map(item => ({
+            // API returns dates as objects with _seconds, so we need to convert them
+            const historyWithDates = data.history.map((item: any) => ({
                 ...item,
-                date: new Date(item.date),
+                date: new Date(item.date._seconds * 1000),
             }));
 
             const sortedHistory = historyWithDates.sort((a, b) => b.date.getTime() - a.date.getTime());
@@ -64,12 +65,12 @@ function UserDataModal({ user }: { user: UserType }) {
             if (sortedHistory.length > 0) {
                 setSelectedEntry(sortedHistory[0]);
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error("Failed to fetch user's nutrient history:", err);
             toast({
                 variant: 'destructive',
                 title: 'Error',
-                description: "Could not fetch user's nutrient history."
+                description: err.message || "Could not fetch user's nutrient history."
             });
         } finally {
             setLoading(false);
