@@ -1,5 +1,5 @@
 
-import { getAllUsers } from '@/ai/flows/admin-flows';
+import { setAdminClaim } from '@/ai/flows/admin-flows';
 import { NextResponse, NextRequest } from 'next/server';
 import { getAuth } from 'firebase-admin/auth';
 import { initializeApp, getApps, cert, ServiceAccount } from 'firebase-admin/app';
@@ -12,29 +12,32 @@ if (!getApps().length) {
   });
 }
 
-export async function GET(request: NextRequest) {
+export async function POST(request: NextRequest) {
   const authToken = request.headers.get('Authorization')?.split('Bearer ')[1];
+  const body = await request.json();
+  const { email } = body;
 
   if (!authToken) {
-    return NextResponse.json({ message: 'Authorization token is required' }, { status: 401 });
+    return NextResponse.json({ success: false, message: 'Authorization token is required' }, { status: 401 });
+  }
+
+  if (!email) {
+    return NextResponse.json({ success: false, message: 'Email is required' }, { status: 400 });
   }
   
   try {
     // Verify the token and check for admin custom claim
     const decodedToken = await getAuth().verifyIdToken(authToken);
     if (decodedToken.admin !== true) {
-        return NextResponse.json({ message: 'Forbidden: User is not an admin' }, { status: 403 });
+        return NextResponse.json({ success: false, message: 'Forbidden: User is not an admin' }, { status: 403 });
     }
 
-    // If admin, proceed to fetch all users
-    const data = await getAllUsers();
-    return NextResponse.json(data);
+    // If admin, proceed to set claim on another user
+    const result = await setAdminClaim(email);
+    return NextResponse.json(result);
   } catch (error) {
-    console.error('Error in /api/admin/users:', error);
+    console.error('Error in /api/admin/set-claim:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    if (errorMessage.includes('ID token has expired')) {
-        return NextResponse.json({ message: 'Authentication token expired.', error: errorMessage }, { status: 401 });
-    }
-    return NextResponse.json({ message: 'Failed to fetch users', error: errorMessage }, { status: 500 });
+    return NextResponse.json({ success: false, message: errorMessage }, { status: 500 });
   }
 }

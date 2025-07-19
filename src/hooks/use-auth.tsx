@@ -26,6 +26,7 @@ type User = {
 interface AuthContextType {
     user: User | null;
     firebaseUser: FirebaseUser | null;
+    idToken: string | null;
     loading: boolean;
     isAdmin: boolean;
     login: (email: string, pass: string) => Promise<any>;
@@ -38,23 +39,45 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
+  const [idToken, setIdToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
   const router = useRouter();
 
   const handleAuthStateChanged = useCallback(async (fbUser: FirebaseUser | null) => {
+    setLoading(true);
     setFirebaseUser(fbUser);
+
     if (fbUser) {
+      const tokenResult = await fbUser.getIdTokenResult();
+      const userIsAdmin = tokenResult.claims.admin === true;
+
+      setIdToken(tokenResult.token);
+      setIsAdmin(userIsAdmin);
+
       const userDocRef = doc(db, 'users', fbUser.uid);
       const userDoc = await getDoc(userDocRef);
       if (userDoc.exists()) {
-        setUser({ uid: fbUser.uid, ...userDoc.data() } as User);
+        const dbUser = userDoc.data();
+        const appUser: User = { 
+          uid: fbUser.uid, 
+          name: dbUser.name,
+          email: dbUser.email,
+          // Trust the custom claim for the role, but fallback to firestore
+          role: userIsAdmin ? 'admin' : (dbUser.role || 'user'),
+        };
+        setUser(appUser);
+        // If the role in DB is out of sync with claim, update it
+        if (appUser.role !== dbUser.role) {
+            await setDoc(userDocRef, { role: appUser.role }, { merge: true });
+        }
       } else {
-         // This case handles newly signed up users who don't have a doc yet.
-         // It will be created in the signup function.
         setUser(null);
       }
     } else {
       setUser(null);
+      setIdToken(null);
+      setIsAdmin(false);
     }
     setLoading(false);
   }, []);
@@ -66,7 +89,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (email: string, pass: string) => {
     setLoading(true);
-    return signInWithEmailAndPassword(auth, email, pass).finally(() => setLoading(false));
+    return signInWithEmailAndPassword(auth, email, pass);
   };
   
   const signup = async (email: string, pass: string, name: string) => {
@@ -74,18 +97,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
       const fbUser = userCredential.user;
-      const newUser: User = {
-        uid: fbUser.uid,
+      const newUser: Omit<User, 'uid' | 'role'> & {role: 'user'} = {
         name,
         email: fbUser.email!,
         role: 'user', // Default role for new signups
       };
-      await setDoc(doc(db, 'users', fbUser.uid), {
-        name: newUser.name,
-        email: newUser.email,
-        role: newUser.role,
-      });
-      setUser(newUser);
+      await setDoc(doc(db, 'users', fbUser.uid), newUser);
+
+      // We don't set user state directly, onAuthStateChanged will handle it
+      // which ensures custom claims are also processed on first login.
       router.push('/dashboard');
     } finally {
       setLoading(false);
@@ -101,8 +121,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const authContextValue = { 
     user, 
     firebaseUser, 
+    idToken,
     loading, 
-    isAdmin: user?.role === 'admin',
+    isAdmin,
     login,
     signup,
     logout

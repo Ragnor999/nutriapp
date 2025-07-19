@@ -5,6 +5,7 @@
  *
  * - getAllUsers - Fetches all users from Firebase Authentication.
  * - getUserNutrientHistory - Fetches nutrient history for a specific user.
+ * - setAdminClaim - Sets an admin custom claim on a user.
  */
 
 import { ai } from '@/ai/genkit';
@@ -24,6 +25,7 @@ if (!getApps().length) {
 }
 
 const db = getFirestore();
+const auth = getAuth();
 
 // Schema for a single user
 const UserSchema = z.object({
@@ -31,6 +33,7 @@ const UserSchema = z.object({
   email: z.string().optional(),
   displayName: z.string().optional(),
   creationTime: z.string(),
+  isAdmin: z.boolean(),
 });
 
 // Schema for the output of getAllUsers
@@ -45,7 +48,7 @@ const getAllUsersFlow = ai.defineFlow(
     outputSchema: AllUsersOutputSchema,
   },
   async () => {
-    const authUserRecords = await getAuth().listUsers();
+    const authUserRecords = await auth.listUsers();
     
     const usersWithFirestoreData = await Promise.all(
         authUserRecords.users.map(async (userRecord) => {
@@ -56,14 +59,13 @@ const getAllUsersFlow = ai.defineFlow(
             return {
                 uid: userRecord.uid,
                 email: userRecord.email,
-                // Prefer Firestore name, fall back to Auth displayName
                 displayName: firestoreData?.name || userRecord.displayName,
                 creationTime: userRecord.metadata.creationTime,
+                isAdmin: userRecord.customClaims?.admin === true,
             };
         })
     );
     
-    // Sort users by creation time, newest first
     const sortedUsers = usersWithFirestoreData.sort((a,b) => new Date(b.creationTime).getTime() - new Date(a.creationTime).getTime());
 
     return { users: sortedUsers };
@@ -106,14 +108,12 @@ const getUserNutrientHistoryFlow = ai.defineFlow(
   },
   async ({ userId }) => {
     const historyRef = db.collection('nutrientHistory');
-    // Correctly query the collection using a 'where' clause for the Admin SDK
     const querySnapshot = await historyRef.where('userId', '==', userId).get();
 
     const history: NutrientData[] = [];
     querySnapshot.forEach((doc) => {
       const data = doc.data();
       history.push({
-        // Convert Firestore Timestamp to JS Date object for the client
         date: (data.date as Timestamp).toDate(),
         macros: data.macros,
         micros: data.micros,
@@ -121,14 +121,42 @@ const getUserNutrientHistoryFlow = ai.defineFlow(
       });
     });
 
-    // Sort by date descending
     const sortedHistory = history.sort((a, b) => b.date.getTime() - a.date.getTime());
     
     return { history: sortedHistory };
   }
 );
 
-
 export async function getUserNutrientHistory(userId: string): Promise<UserNutrientHistoryOutput> {
     return getUserNutrientHistoryFlow({ userId });
+}
+
+// Schema for setting an admin claim
+const SetAdminClaimInputSchema = z.object({
+  email: z.string().email().describe("The email of the user to make an admin."),
+});
+
+const setAdminClaimFlow = ai.defineFlow(
+  {
+    name: 'setAdminClaimFlow',
+    inputSchema: SetAdminClaimInputSchema,
+    outputSchema: z.object({ success: z.boolean(), message: z.string() }),
+  },
+  async ({ email }) => {
+    try {
+      const user = await auth.getUserByEmail(email);
+      if (user.customClaims?.admin === true) {
+        return { success: false, message: 'User is already an admin.' };
+      }
+      await auth.setCustomUserClaims(user.uid, { admin: true });
+      return { success: true, message: `Successfully made ${email} an admin.` };
+    } catch (error: any) {
+      console.error('Error setting admin claim:', error);
+      return { success: false, message: error.message || 'Failed to set admin claim.' };
+    }
+  }
+);
+
+export async function setAdminClaim(email: string) {
+    return setAdminClaimFlow({ email });
 }

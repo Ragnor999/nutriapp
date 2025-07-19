@@ -9,7 +9,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recha
 import { CheckCircle, Users } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { Skeleton } from '@/components/ui/skeleton';
-import { isSameDay } from 'date-fns';
+import { isSameDay, format } from 'date-fns';
 import { type AllUsersOutput, type UserNutrientHistoryOutput } from '@/ai/flows/admin-flows';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
@@ -23,18 +23,22 @@ export default function CalendarPage() {
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<UserType[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const { user, isAdmin, loading: authLoading } = useAuth();
+  const { user, isAdmin, idToken, loading: authLoading } = useAuth();
   const { toast } = useToast();
 
   const fetchHistory = useCallback(async (userId: string) => {
-    if (!userId) {
+    if (!userId || !idToken) {
         setNutrientHistory([]);
         return;
     }
     setLoading(true);
     setNutrientHistory([]); // Clear previous history
     try {
-      const response = await fetch(`/api/admin/history?userId=${userId}`);
+      const response = await fetch(`/api/admin/history?userId=${userId}`, {
+        headers: {
+            'Authorization': `Bearer ${idToken}`
+        }
+      });
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to fetch history');
@@ -43,7 +47,7 @@ export default function CalendarPage() {
       
       const historyWithDates = data.history.map((item: any) => ({
           ...item,
-          date: new Date(item.date._seconds * 1000 + (item.date._nanoseconds || 0) / 1000000),
+          date: new Date(item.date),
       }));
 
       const sortedHistory = historyWithDates.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -59,17 +63,21 @@ export default function CalendarPage() {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [idToken, toast]);
 
   // Combined effect to handle initial data loading
   useEffect(() => {
-    if (authLoading) {
-      return; // Wait until authentication state is resolved
+    if (authLoading || !idToken) {
+      return; // Wait until authentication state and token are resolved
     }
 
     if (isAdmin) {
       setLoading(true);
-      fetch('/api/admin/users')
+      fetch('/api/admin/users', {
+        headers: {
+            'Authorization': `Bearer ${idToken}`
+        }
+      })
         .then(res => {
             if (!res.ok) throw new Error("Failed to fetch users");
             return res.json() as Promise<AllUsersOutput>;
@@ -77,9 +85,10 @@ export default function CalendarPage() {
         .then(data => {
           setUsers(data.users);
           if (data.users.length > 0) {
-            const defaultUserId = data.users[0].uid;
-            setSelectedUserId(defaultUserId);
-            fetchHistory(defaultUserId);
+            // Default to viewing the admin's own data first
+            const adminUser = data.users.find(u => u.uid === user?.uid) || data.users[0];
+            setSelectedUserId(adminUser.uid);
+            fetchHistory(adminUser.uid);
           } else {
             setLoading(false);
           }
@@ -101,7 +110,7 @@ export default function CalendarPage() {
       // Not logged in or no user object
       setLoading(false);
     }
-  }, [authLoading, user, isAdmin, fetchHistory, toast]);
+  }, [authLoading, user, isAdmin, fetchHistory, toast, idToken]);
 
 
   const handleAdminUserChange = (userId: string) => {
@@ -150,7 +159,7 @@ export default function CalendarPage() {
           </div>
         )}
       </div>
-      {loading ? (
+      {(loading && nutrientHistory.length === 0) ? (
         <div className="mt-6 grid flex-1 gap-6 md:grid-cols-[auto_1fr]">
           <Card className="hidden md:flex items-start justify-center pt-6 w-min">
             <CardContent className="p-0">
@@ -185,12 +194,13 @@ export default function CalendarPage() {
                         opacity: 0.8,
                     }
                 }}
+                disabled={(day) => day > new Date() || day < new Date("1900-01-01")}
             />
         </Card>
         <Card>
           <CardHeader>
             <CardTitle className="font-headline">
-              {date ? date.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : 'Select a date'}
+              {date ? format(date, 'PPP') : 'Select a date'}
             </CardTitle>
             <CardDescription>
                 {selectedData ? `Est. ${selectedData.calories} calories` : 'No data for this day.'}

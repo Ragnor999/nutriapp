@@ -1,13 +1,13 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { User, Calendar, Eye, Utensils, ChevronRight } from 'lucide-react';
+import { User, Calendar, Eye, Utensils, ChevronRight, Loader2, ShieldCheck, ShieldOff } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { type AllUsersOutput, type UserNutrientHistoryOutput } from '@/ai/flows/admin-flows';
+import { type AllUsersOutput, type UserNutrientHistoryOutput, setAdminClaim } from '@/ai/flows/admin-flows';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import type { NutrientData } from '@/lib/types';
 import { useAuth } from '@/hooks/use-auth';
@@ -19,6 +19,9 @@ import { format } from 'date-fns';
 import { Calendar as UICalendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 
 
 type UserType = AllUsersOutput['users'][0];
@@ -36,7 +39,7 @@ const toParsedAnalysis = (data: NutrientData): ParsedAnalysis => {
   };
 };
 
-function UserDataModal({ user }: { user: UserType }) {
+function UserDataModal({ user, token }: { user: UserType, token: string | null }) {
   const [loading, setLoading] = useState(true);
   const [history, setHistory] = useState<NutrientData[]>([]);
   const [selectedEntry, setSelectedEntry] = useState<NutrientData | null>(null);
@@ -45,39 +48,48 @@ function UserDataModal({ user }: { user: UserType }) {
 
   useEffect(() => {
     async function fetchHistory() {
-        setLoading(true);
-        try {
-            const response = await fetch(`/api/admin/history?userId=${user.uid}`);
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to fetch history');
-            }
-            const data: UserNutrientHistoryOutput = await response.json();
-            
-            // API returns dates as objects with _seconds, so we need to convert them
-            const historyWithDates = data.history.map((item: any) => ({
-                ...item,
-                date: new Date(item.date._seconds * 1000 + (item.date._nanoseconds || 0) / 1000000),
-            }));
+      if (!token) {
+        setLoading(false);
+        toast({ variant: 'destructive', title: 'Authentication Error', description: 'Could not authenticate the request.' });
+        return;
+      }
+      setLoading(true);
+      try {
+        const response = await fetch(`/api/admin/history?userId=${user.uid}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
 
-            const sortedHistory = historyWithDates.sort((a, b) => b.date.getTime() - a.date.getTime());
-            setHistory(sortedHistory);
-            if (sortedHistory.length > 0) {
-                setSelectedEntry(sortedHistory[0]);
-            }
-        } catch (err: any) {
-            console.error("Failed to fetch user's nutrient history:", err);
-            toast({
-                variant: 'destructive',
-                title: 'Error',
-                description: err.message || "Could not fetch user's nutrient history."
-            });
-        } finally {
-            setLoading(false);
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to fetch history');
         }
+        const data: UserNutrientHistoryOutput = await response.json();
+        
+        const historyWithDates = data.history.map((item: any) => ({
+            ...item,
+            date: new Date(item.date),
+        }));
+
+        const sortedHistory = historyWithDates.sort((a, b) => b.date.getTime() - a.date.getTime());
+        setHistory(sortedHistory);
+        if (sortedHistory.length > 0) {
+            setSelectedEntry(sortedHistory[0]);
+        }
+      } catch (err: any) {
+        console.error("Failed to fetch user's nutrient history:", err);
+        toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: err.message || "Could not fetch user's nutrient history."
+        });
+      } finally {
+        setLoading(false);
+      }
     }
     fetchHistory();
-  }, [user.uid, toast]);
+  }, [user.uid, toast, token]);
 
   const filteredHistory = history.filter(entry => 
       !date || format(entry.date, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')
@@ -180,13 +192,118 @@ function UserDataModal({ user }: { user: UserType }) {
 }
 
 
+function MakeAdminDialog({ token, onAdminMade }: { token: string | null, onAdminMade: () => void }) {
+  const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+  const { toast } = useToast();
+
+  const handleMakeAdmin = async () => {
+    if (!token) {
+      toast({ variant: 'destructive', title: 'Authentication Error' });
+      return;
+    }
+    setLoading(true);
+    try {
+      const response = await fetch('/api/admin/set-claim', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ email })
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Failed to make user admin.');
+      }
+      toast({
+        title: 'Success',
+        description: result.message,
+      });
+      onAdminMade();
+      setOpen(false);
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: err.message,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <AlertDialog open={open} onOpenChange={setOpen}>
+      <AlertDialogTrigger asChild>
+        <Button size="sm">
+          <ShieldCheck className="h-4 w-4 mr-2" />
+          Make Admin
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Make User an Admin</AlertDialogTitle>
+          <AlertDialogDescription>
+            Enter the email of the user you want to grant admin privileges to. This action is irreversible through the UI.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div className="py-4">
+          <Input 
+            type="email" 
+            placeholder="user@example.com" 
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </div>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={handleMakeAdmin} disabled={loading}>
+            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Confirm
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<UserType[]>([]);
-  const { isAdmin, loading: authLoading } = useAuth();
+  const { user, isAdmin, idToken, loading: authLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   
+  const fetchUsers = useCallback(async () => {
+    if (isAdmin && idToken) {
+        setLoading(true);
+        try {
+            const response = await fetch('/api/admin/users', {
+                headers: {
+                    'Authorization': `Bearer ${idToken}`
+                }
+            });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to fetch users');
+            }
+            const data: AllUsersOutput = await response.json();
+            setUsers(data.users);
+        } catch (err: any) {
+            console.error("Failed to fetch users:", err);
+            toast({
+                variant: 'destructive',
+                title: 'Error',
+                description: err.message || "Could not fetch the list of users."
+            });
+        } finally {
+            setLoading(false);
+        }
+    }
+  }, [isAdmin, idToken, toast]);
+
   useEffect(() => {
     if (!authLoading && !isAdmin) {
         router.replace('/dashboard');
@@ -194,32 +311,10 @@ export default function AdminPage() {
   }, [isAdmin, authLoading, router]);
 
   useEffect(() => {
-    async function fetchUsers() {
-        if (isAdmin) {
-            setLoading(true);
-            try {
-                const response = await fetch('/api/admin/users');
-                if (!response.ok) {
-                    throw new Error('Failed to fetch users');
-                }
-                const data: AllUsersOutput = await response.json();
-                setUsers(data.users);
-            } catch (err) {
-                console.error("Failed to fetch users:", err);
-                toast({
-                    variant: 'destructive',
-                    title: 'Error',
-                    description: "Could not fetch the list of users."
-                });
-            } finally {
-                setLoading(false);
-            }
-        }
-    }
     fetchUsers();
-  }, [isAdmin, toast]);
+  }, [fetchUsers]);
 
-  if (authLoading || !isAdmin) {
+  if (authLoading || loading) {
     return (
         <div className="flex h-full items-center justify-center">
              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
@@ -229,8 +324,13 @@ export default function AdminPage() {
 
   return (
     <>
-      <h1 className="text-3xl font-bold tracking-tight font-headline">Admin Panel</h1>
-      <p className="text-muted-foreground">Manage users and view their data.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight font-headline">Admin Panel</h1>
+          <p className="text-muted-foreground">Manage users and view their data.</p>
+        </div>
+        <MakeAdminDialog token={idToken} onAdminMade={fetchUsers} />
+      </div>
       <div className="mt-6">
         <Dialog>
             <Card>
@@ -245,29 +345,27 @@ export default function AdminPage() {
                     <TableHead>User</TableHead>
                     <TableHead className="hidden md:table-cell">Email</TableHead>
                     <TableHead className="hidden md:table-cell">Join Date</TableHead>
+                    <TableHead className="hidden sm:table-cell">Role</TableHead>
                     <TableHead>
                         <span className="sr-only">Actions</span>
                     </TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {loading ? (
-                        Array.from({ length: 5 }).map((_, i) => (
-                        <TableRow key={i}>
-                            <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-                            <TableCell className="hidden md:table-cell"><Skeleton className="h-5 w-32" /></TableCell>
-                            <TableCell className="hidden md:table-cell"><Skeleton className="h-5 w-20" /></TableCell>
-                            <TableCell><Skeleton className="h-8 w-24 rounded-md" /></TableCell>
-                        </TableRow>
-                        ))
-                    ) : (
-                    users.map((user) => (
+                    {users.map((user) => (
                         <TableRow key={user.uid}>
                         <TableCell>
                             <div className="font-medium">{user.displayName || 'N/A'}</div>
                         </TableCell>
                         <TableCell className="hidden md:table-cell">{user.email}</TableCell>
                         <TableCell className="hidden md:table-cell">{new Date(user.creationTime).toLocaleDateString()}</TableCell>
+                        <TableCell className="hidden sm:table-cell">
+                          {user.isAdmin ? (
+                            <Badge variant="destructive"><ShieldCheck className="w-3.5 h-3.5 mr-1"/>Admin</Badge>
+                          ) : (
+                            <Badge variant="secondary"><ShieldOff className="w-3.5 h-3.5 mr-1"/>User</Badge>
+                          )}
+                        </TableCell>
                         <TableCell>
                           <DialogTrigger asChild>
                              <Button aria-haspopup="true" size="sm" variant="outline">
@@ -275,11 +373,10 @@ export default function AdminPage() {
                                 View Data
                             </Button>
                           </DialogTrigger>
-                          <UserDataModal user={user} />
+                          <UserDataModal user={user} token={idToken}/>
                         </TableCell>
                         </TableRow>
-                    ))
-                    )}
+                    ))}
                 </TableBody>
                 </Table>
             </CardContent>
@@ -289,3 +386,4 @@ export default function AdminPage() {
     </>
   );
 }
+
