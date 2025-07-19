@@ -12,7 +12,7 @@ export const saveNutrientData = async (userId: string, data: ParsedAnalysis) => 
   };
 
   const docData = {
-    userId,
+    userId: userId, // <<< This was the missing field
     date: Timestamp.now(),
     calories: data.calories,
     macros,
