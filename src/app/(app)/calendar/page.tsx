@@ -26,14 +26,14 @@ export default function CalendarPage() {
   const { user, isAdmin, idToken, loading: authLoading } = useAuth();
   const { toast } = useToast();
 
-  const fetchHistory = useCallback(async (userId: string) => {
-    if (!userId || !idToken) {
+  const fetchHistory = useCallback(async (userIdToFetch: string) => {
+    if (!userIdToFetch || !idToken) {
       setNutrientHistory([]);
       return;
     }
     setLoading(true);
     try {
-      const response = await fetch(`/api/admin/history?userId=${userId}`, {
+      const response = await fetch(`/api/admin/history?userId=${userIdToFetch}`, {
         headers: { 'Authorization': `Bearer ${idToken}` }
       });
       if (!response.ok) {
@@ -45,8 +45,7 @@ export default function CalendarPage() {
         ...item,
         date: new Date(item.date),
       }));
-      const sortedHistory = historyWithDates.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      setNutrientHistory(sortedHistory);
+      setNutrientHistory(historyWithDates);
     } catch (err: any) {
       console.error("Failed to fetch nutrient history:", err);
       toast({
@@ -62,51 +61,55 @@ export default function CalendarPage() {
 
   useEffect(() => {
     if (authLoading) {
-      return; // Wait for auth to resolve
+      return; 
     }
 
-    const loadData = async () => {
+    const loadInitialData = async () => {
       setLoading(true);
       if (isAdmin) {
-        if (!idToken) { setLoading(false); return; }
+        if (!idToken) { return; }
         try {
           const res = await fetch('/api/admin/users', {
             headers: { 'Authorization': `Bearer ${idToken}` }
           });
-          if (!res.ok) throw new Error("Failed to fetch users");
+          if (!res.ok) {
+             const errorData = await res.json();
+             throw new Error(errorData.message || "Failed to fetch users");
+          }
           const data: AllUsersOutput = await res.json();
           setUsers(data.users);
-          const adminUser = data.users.find(u => u.uid === user?.uid) || (data.users.length > 0 ? data.users[0] : null);
-          if (adminUser) {
-            setSelectedUserId(adminUser.uid);
-            // fetchHistory will be triggered by selectedUserId change
-          } else {
-            setLoading(false);
+          // Set the current admin as the initially selected user
+          if (user && data.users.some(u => u.uid === user.uid)) {
+            setSelectedUserId(user.uid);
+          } else if (data.users.length > 0) {
+            setSelectedUserId(data.users[0].uid);
           }
-        } catch (err) {
+        } catch (err: any) {
           console.error("Failed to fetch users:", err);
-          toast({ variant: 'destructive', title: 'Error', description: 'Could not load the list of users.' });
-          setLoading(false);
+          toast({ variant: 'destructive', title: 'Error', description: err.message || 'Could not load the list of users.' });
         }
       } else if (user) {
         setSelectedUserId(user.uid);
-         // fetchHistory will be triggered by selectedUserId change
-      } else {
-        setLoading(false);
       }
+      // setLoading will be handled by fetchHistory
     };
 
-    loadData();
+    loadInitialData();
   }, [authLoading, isAdmin, user, idToken, toast]);
 
   useEffect(() => {
     if (selectedUserId) {
       fetchHistory(selectedUserId);
+    } else {
+        // If there's no selected user (e.g., admin view with no users), stop loading.
+        if (!authLoading) {
+            setLoading(false);
+        }
     }
-  }, [selectedUserId, fetchHistory]);
+  }, [selectedUserId, fetchHistory, authLoading]);
 
   const handleAdminUserChange = (userId: string) => {
-    setNutrientHistory([]); // Clear old history immediately
+    setNutrientHistory([]);
     setSelectedUserId(userId);
   };
 
@@ -136,7 +139,7 @@ export default function CalendarPage() {
         {isAdmin && (
           <div className="mt-4 sm:mt-0 w-full sm:w-64">
              <Label htmlFor="user-select" className="flex items-center gap-2 mb-2 text-sm font-medium text-muted-foreground"><Users className="w-4 h-4"/>Select User</Label>
-            <Select onValueChange={handleAdminUserChange} value={selectedUserId || ''} disabled={isDataLoading || users.length === 0}>
+            <Select onValueChange={handleAdminUserChange} value={selectedUserId || ''} disabled={isDataLoading}>
               <SelectTrigger id="user-select" className="w-full">
                 <SelectValue placeholder="Select a user to view" />
               </SelectTrigger>
@@ -226,7 +229,7 @@ export default function CalendarPage() {
                 </div>
             ) : (
                 <div className="flex items-center justify-center h-full min-h-64 text-center">
-                    <p className="text-muted-foreground">{!selectedUserId && isAdmin ? 'Select a user to view their calendar.' : 'Select a highlighted day to see nutrient details.'}</p>
+                    <p className="text-muted-foreground">{!selectedUserId && isAdmin && users.length > 0 ? 'Select a user to view their calendar.' : 'Select a highlighted day to see nutrient details.'}</p>
                 </div>
             )}
           </CardContent>

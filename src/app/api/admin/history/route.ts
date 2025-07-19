@@ -32,16 +32,15 @@ export async function GET(request: NextRequest) {
     const decodedToken = await getAuth().verifyIdToken(authToken);
     const callerUid = decodedToken.uid;
 
+    // Check if the caller is an admin
+    const callerDocRef = db.collection('users').doc(callerUid);
+    const callerDoc = await callerDocRef.get();
+    const isCallerAdmin = callerDoc.exists() && callerDoc.data()?.role === 'admin';
+
     // A regular user can only access their own history.
     // An admin can access anyone's history.
-    if (callerUid !== userId) {
-        // If the caller is not the user whose data is requested, check if the caller is an admin.
-        const callerDocRef = db.collection('users').doc(callerUid);
-        const callerDoc = await callerDocRef.get();
-
-        if (!callerDoc.exists() || callerDoc.data()?.role !== 'admin') {
-            return NextResponse.json({ message: 'Forbidden: You do not have permission to view this data.' }, { status: 403 });
-        }
+    if (callerUid !== userId && !isCallerAdmin) {
+        return NextResponse.json({ message: 'Forbidden: You do not have permission to view this data.' }, { status: 403 });
     }
 
     // If the checks pass, fetch the history.

@@ -45,53 +45,49 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const router = useRouter();
 
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, (fbUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       setLoading(true);
       if (fbUser) {
         setFirebaseUser(fbUser);
-        
         const userDocRef = doc(db, 'users', fbUser.uid);
-        const unsubscribeFirestore = onSnapshot(userDocRef, async (userDoc) => {
-          if (userDoc.exists()) {
-            const dbUser = userDoc.data();
+        
+        // Use onSnapshot to listen for real-time changes to the user's role
+        const unsubscribeFirestore = onSnapshot(userDocRef, async (docSnap) => {
+          if (docSnap.exists()) {
+            const dbUser = docSnap.data();
             const userIsAdmin = dbUser.role === 'admin';
             
-            const appUser: User = { 
-              uid: fbUser.uid, 
+            const appUser: User = {
+              uid: fbUser.uid,
               name: dbUser.name || fbUser.displayName || '',
               email: dbUser.email || fbUser.email || '',
               role: userIsAdmin ? 'admin' : 'user',
             };
-            
             setUser(appUser);
             setIsAdmin(userIsAdmin);
 
-            try {
-              const token = await fbUser.getIdToken(true);
-              setIdToken(token);
-            } catch (error) {
-              console.error("Error fetching ID token:", error);
-              setIdToken(null);
-            } finally {
-              setLoading(false);
-            }
-
+            // Force refresh the token to get the latest custom claims if they were changed
+            const token = await fbUser.getIdToken(true);
+            setIdToken(token);
+            setLoading(false);
           } else {
-             // User exists in Auth but not Firestore, likely during signup
-             setUser({
-                 uid: fbUser.uid,
-                 name: fbUser.displayName || 'New User',
-                 email: fbUser.email || '',
-                 role: 'user'
-             });
-             setIsAdmin(false);
-             setLoading(false);
+            // User authenticated but not in Firestore yet (e.g., during signup)
+            setUser({
+              uid: fbUser.uid,
+              name: fbUser.displayName || '',
+              email: fbUser.email || '',
+              role: 'user',
+            });
+            setIsAdmin(false);
+            const token = await fbUser.getIdToken();
+            setIdToken(token);
+            setLoading(false);
           }
         });
-
+        
         return () => unsubscribeFirestore();
+
       } else {
-        // No user is logged in
         setUser(null);
         setFirebaseUser(null);
         setIdToken(null);
@@ -100,8 +96,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     });
 
-    return () => unsubscribeAuth();
+    return () => unsubscribe();
   }, []);
+
 
   const login = (email: string, pass: string) => {
     return signInWithEmailAndPassword(auth, email, pass);
