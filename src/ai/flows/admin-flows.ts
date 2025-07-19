@@ -87,7 +87,7 @@ const MacroNutrientsSchema = z.object({
 });
 
 const NutrientDataSchema = z.object({
-  date: z.date(),
+  date: z.any(), // Accept Firestore Timestamp
   macros: MacroNutrientsSchema,
   micros: z.array(z.string()),
   calories: z.number(),
@@ -107,6 +107,8 @@ const getUserNutrientHistoryFlow = ai.defineFlow(
   },
   async ({ userId }) => {
     const historyRef = db.collection('nutrientHistory');
+    // Note: The original query was looking for a string, but the userId is passed correctly.
+    // Making sure the where clause is correct.
     const q = historyRef.where('userId', '==', userId);
     const querySnapshot = await q.get();
 
