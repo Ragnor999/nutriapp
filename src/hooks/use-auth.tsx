@@ -43,75 +43,67 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const router = useRouter();
-
-  const handleAuthStateChange = useCallback(async (fbUser: FirebaseUser | null) => {
-    setLoading(true);
-    if (fbUser) {
-      setFirebaseUser(fbUser);
-      const userDocRef = doc(db, 'users', fbUser.uid);
-      
-      const unsubscribeFirestore = onSnapshot(userDocRef, async (docSnap) => {
-          if (docSnap.exists()) {
-              const dbUser = docSnap.data();
-              const userIsAdmin = dbUser.role === 'admin';
-              
-              const appUser: User = {
-                  uid: fbUser.uid,
-                  name: dbUser.name || fbUser.displayName || '',
-                  email: dbUser.email || fbUser.email || '',
-                  role: userIsAdmin ? 'admin' : 'user',
-              };
-              
-              setUser(appUser);
-              setIsAdmin(userIsAdmin);
-
-              try {
-                  const token = await fbUser.getIdToken(true);
-                  setIdToken(token);
-              } catch (tokenError) {
-                  console.error("Error getting ID token:", tokenError);
-                  // Handle token error if necessary, maybe sign out
-                  setUser(null);
-                  setFirebaseUser(null);
-                  setIdToken(null);
-                  setIsAdmin(false);
-              } finally {
-                  setLoading(false);
-              }
-          } else {
-              // This case can happen briefly during signup before the user doc is created.
-              // We'll set a basic user object and wait for the doc to be created, which will trigger another snapshot.
-              setUser({
-                  uid: fbUser.uid,
-                  name: fbUser.displayName || '',
-                  email: fbUser.email || '',
-                  role: 'user',
-              });
-              setIsAdmin(false);
-              const token = await fbUser.getIdToken();
-              setIdToken(token);
-              setLoading(false);
-          }
-      }, (error) => {
-          console.error("Firestore snapshot error:", error);
-          setLoading(false);
-          // Handle error, maybe sign out
-      });
-
-      return () => unsubscribeFirestore();
-    } else {
-      setUser(null);
-      setFirebaseUser(null);
-      setIdToken(null);
-      setIsAdmin(false);
-      setLoading(false);
-    }
-  }, []);
+  
+  const logout = useCallback(async () => {
+    await firebaseSignOut(auth);
+    router.push('/login');
+  }, [router]);
 
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, handleAuthStateChange);
-    return () => unsubscribeAuth();
-  }, [handleAuthStateChange]);
+    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+      setLoading(true);
+      if (fbUser) {
+        setFirebaseUser(fbUser);
+        
+        // Listen for Firestore document changes
+        const userDocRef = doc(db, 'users', fbUser.uid);
+        const unsubFirestore = onSnapshot(userDocRef, async (docSnap) => {
+            if (docSnap.exists()) {
+                const dbUser = docSnap.data();
+                const userIsAdmin = dbUser.role === 'admin';
+                
+                const appUser: User = {
+                    uid: fbUser.uid,
+                    name: dbUser.name || fbUser.displayName || '',
+                    email: dbUser.email || fbUser.email || '',
+                    role: userIsAdmin ? 'admin' : 'user',
+                };
+                
+                setUser(appUser);
+                setIsAdmin(userIsAdmin);
+
+                try {
+                  // Refresh token to ensure custom claims (if any) are fresh
+                  const token = await fbUser.getIdToken(true); 
+                  setIdToken(token);
+                } catch (e) {
+                  console.error("Error fetching ID token, logging out.", e);
+                  await logout();
+                } finally {
+                  setLoading(false);
+                }
+
+            } else {
+                // This can happen on signup before doc is created.
+                // Or if a user is deleted from Firestore but not Auth.
+                console.warn("User document not found in Firestore, logging out.");
+                await logout();
+            }
+        });
+        
+        return () => unsubFirestore();
+      } else {
+        // No user logged in
+        setUser(null);
+        setFirebaseUser(null);
+        setIdToken(null);
+        setIsAdmin(false);
+        setLoading(false);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [logout]);
 
 
   const login = (email: string, pass: string) => {
@@ -128,11 +120,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
     await setDoc(doc(db, 'users', fbUser.uid), newUser);
   };
-
-  const logout = useCallback(async () => {
-    await firebaseSignOut(auth);
-    router.push('/login');
-  }, [router]);
 
   const authContextValue = { 
     user, 

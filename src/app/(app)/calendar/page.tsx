@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar } from '@/components/ui/calendar';
 import type { NutrientData } from '@/lib/types';
@@ -14,13 +14,14 @@ import { type AllUsersOutput, type UserNutrientHistoryOutput } from '@/ai/flows/
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { Loader2 } from 'lucide-react';
 
 type UserType = AllUsersOutput['users'][0];
 
 export default function CalendarPage() {
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [nutrientHistory, setNutrientHistory] = useState<NutrientData[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const [users, setUsers] = useState<UserType[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
@@ -30,7 +31,7 @@ export default function CalendarPage() {
   // Effect to fetch the list of users if the current user is an admin
   useEffect(() => {
     const fetchUsers = async () => {
-      if (!isAdmin || !idToken) return;
+      if (!idToken) return;
       setUsersLoading(true);
       try {
         const res = await fetch('/api/admin/users', {
@@ -46,7 +47,7 @@ export default function CalendarPage() {
         console.error("Failed to fetch users:", err);
         toast({
           variant: 'destructive',
-          title: 'Error',
+          title: 'Error fetching users',
           description: err.message || 'Could not load the list of users.'
         });
         setUsers([]);
@@ -55,39 +56,39 @@ export default function CalendarPage() {
       }
     };
 
-    if (!authLoading) {
-      if (isAdmin) {
-        fetchUsers();
-      } else {
-        setUsersLoading(false);
-      }
+    if (!authLoading && isAdmin) {
+      fetchUsers();
+    } else if (!authLoading && !isAdmin) {
+      setUsersLoading(false);
     }
-  }, [authLoading, isAdmin, idToken]); // Removed `toast` from dependencies
+  }, [authLoading, isAdmin, idToken]); // toast is removed
 
   // Effect to set the initially selected user
   useEffect(() => {
-    if (!usersLoading) {
+    if (!authLoading) {
       if (isAdmin) {
-        // Default to the admin's own ID if they are in the list, otherwise the first user
-        if (user && users.some(u => u.uid === user.uid)) {
-          setSelectedUserId(user.uid);
-        } else if (users.length > 0) {
-          setSelectedUserId(users[0].uid);
-        } else {
-          setSelectedUserId(null); // No users to select
+        // Admin's view
+        if (!usersLoading && users.length > 0) {
+          // Default to the admin's own ID if they are in the list, otherwise the first user
+          if (user && users.some(u => u.uid === user.uid)) {
+            setSelectedUserId(user.uid);
+          } else {
+            setSelectedUserId(users[0].uid);
+          }
         }
       } else if (user) {
         // Regular user can only see their own data
         setSelectedUserId(user.uid);
       }
     }
-  }, [users, user, isAdmin, usersLoading]);
+  }, [users, user, isAdmin, authLoading, usersLoading]);
 
   // Effect to fetch nutrient history when the selected user changes
   useEffect(() => {
     const fetchHistory = async () => {
       if (!selectedUserId || !idToken) {
         setNutrientHistory([]);
+        setHistoryLoading(false);
         return;
       }
       setHistoryLoading(true);
@@ -109,7 +110,7 @@ export default function CalendarPage() {
         console.error("Failed to fetch nutrient history:", err);
         toast({
           variant: 'destructive',
-          title: 'Error',
+          title: 'Error fetching history',
           description: err.message || 'Could not load nutrient history.'
         });
         setNutrientHistory([]);
@@ -118,8 +119,10 @@ export default function CalendarPage() {
       }
     };
     
-    fetchHistory();
-  }, [selectedUserId, idToken, toast]);
+    if (!authLoading) {
+      fetchHistory();
+    }
+  }, [selectedUserId, idToken, authLoading]); // toast is removed
 
 
   const selectedData = date ? nutrientHistory.find(entry => isSameDay(new Date(entry.date), date)) : undefined;
@@ -134,7 +137,7 @@ export default function CalendarPage() {
   
   const selectedUserName = users.find(u => u.uid === selectedUserId)?.displayName || user?.name;
   
-  const isOverallLoading = authLoading || usersLoading;
+  const isOverallLoading = authLoading || (isAdmin && usersLoading);
 
   return (
     <div className="flex flex-col h-full">
@@ -163,7 +166,7 @@ export default function CalendarPage() {
           </div>
         )}
       </div>
-      {isOverallLoading || historyLoading ? (
+      {isOverallLoading ? (
         <div className="mt-6 grid flex-1 gap-6 md:grid-cols-[auto_1fr]">
           <Card className="hidden md:flex items-start justify-center pt-6 w-min">
             <CardContent className="p-0">
@@ -211,7 +214,11 @@ export default function CalendarPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {selectedData ? (
+            {historyLoading ? (
+               <div className="flex justify-center items-center h-full min-h-64">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                 </div>
+            ) : selectedData ? (
                 <div className="space-y-6">
                     <div>
                         <h3 className="font-semibold text-md mb-2 font-headline">Macronutrients (g)</h3>

@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -20,7 +20,6 @@ import { Calendar as UICalendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
-
 
 type UserType = AllUsersOutput['users'][0];
 
@@ -46,7 +45,7 @@ function UserDataModal({ user, token }: { user: UserType, token: string | null }
 
   useEffect(() => {
     async function fetchHistory() {
-      if (!token) {
+      if (!token || !user.uid) {
         toast({ variant: 'destructive', title: 'Authentication Error', description: 'Could not authenticate the request.' });
         setLoading(false);
         return;
@@ -86,9 +85,7 @@ function UserDataModal({ user, token }: { user: UserType, token: string | null }
         setLoading(false);
       }
     }
-    if (user.uid && token) {
-      fetchHistory();
-    }
+    fetchHistory();
   }, [user.uid, toast, token]);
 
   const filteredHistory = history.filter(entry => 
@@ -199,14 +196,16 @@ export default function AdminPage() {
   const { toast } = useToast();
   
   useEffect(() => {
-    if (!authLoading && user && !isAdmin) {
+    // Redirect non-admins or if auth is still loading but no user is found
+    if (!authLoading && !isAdmin) {
         router.replace('/dashboard');
     }
   }, [user, isAdmin, authLoading, router]);
 
   useEffect(() => {
     const fetchUsers = async () => {
-        if (!isAdmin || !idToken) {
+        if (!idToken) {
+            setLoading(false);
             return;
         }
 
@@ -237,11 +236,8 @@ export default function AdminPage() {
     
     if (!authLoading && isAdmin) {
       fetchUsers();
-    } else if (!authLoading && !isAdmin) {
-      setLoading(false);
     }
   }, [authLoading, isAdmin, idToken, toast]);
-
 
   if (authLoading) {
     return (

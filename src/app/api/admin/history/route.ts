@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     const decodedToken = await getAuth().verifyIdToken(authToken);
     const callerUid = decodedToken.uid;
 
-    // Check if the caller is an admin
+    // Check if the caller is an admin by reading their Firestore document
     const callerDocRef = db.collection('users').doc(callerUid);
     const callerDoc = await callerDocRef.get();
     const isCallerAdmin = callerDoc.exists() && callerDoc.data()?.role === 'admin';
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error(`Error in /api/admin/history for userId ${userId}:`, error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    if (errorMessage.includes('ID token has expired')) {
+    if (errorMessage.includes('ID token has expired') || errorMessage.includes('token expired')) {
         return NextResponse.json({ message: 'Authentication token expired.', error: errorMessage }, { status: 401 });
     }
     return NextResponse.json({ message: 'Failed to fetch user history', error: errorMessage }, { status: 500 });

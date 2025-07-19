@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Error in /api/admin/users:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    if (errorMessage.includes('ID token has expired')) {
+    if (errorMessage.includes('ID token has expired') || errorMessage.includes('token expired')) {
         return NextResponse.json({ message: 'Authentication token expired.', error: errorMessage }, { status: 401 });
     }
     return NextResponse.json({ message: 'Failed to fetch users', error: errorMessage }, { status: 500 });
