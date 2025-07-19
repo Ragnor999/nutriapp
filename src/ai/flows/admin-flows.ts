@@ -61,7 +61,7 @@ const getAllUsersFlow = ai.defineFlow(
                 email: userRecord.email,
                 displayName: firestoreData?.name || userRecord.displayName,
                 creationTime: userRecord.metadata.creationTime,
-                isAdmin: userRecord.customClaims?.admin === true,
+                isAdmin: firestoreData?.role === 'admin' || userRecord.customClaims?.admin === true,
             };
         })
     );
@@ -145,10 +145,10 @@ const setAdminClaimFlow = ai.defineFlow(
   async ({ email }) => {
     try {
       const user = await auth.getUserByEmail(email);
-      if (user.customClaims?.admin === true) {
-        return { success: false, message: 'User is already an admin.' };
-      }
+      // Set both the custom claim and the Firestore role
       await auth.setCustomUserClaims(user.uid, { admin: true });
+      await db.collection('users').doc(user.uid).set({ role: 'admin' }, { merge: true });
+      
       return { success: true, message: `Successfully made ${email} an admin.` };
     } catch (error: any) {
       console.error('Error setting admin claim:', error);

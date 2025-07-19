@@ -11,7 +11,7 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { app, db } from '@/lib/firebase';
 
 const auth = getAuth(app);
@@ -44,72 +44,77 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isAdmin, setIsAdmin] = useState(false);
   const router = useRouter();
 
-  const handleAuthStateChanged = useCallback(async (fbUser: FirebaseUser | null) => {
-    setLoading(true);
-    setFirebaseUser(fbUser);
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (fbUser) => {
+      setLoading(true);
+      setFirebaseUser(fbUser);
 
-    if (fbUser) {
-      const tokenResult = await fbUser.getIdTokenResult();
-      const userIsAdmin = tokenResult.claims.admin === true;
+      if (fbUser) {
+        // Get token and check custom claims
+        const tokenResult = await fbUser.getIdTokenResult(true); // Force refresh
+        const customClaimIsAdmin = tokenResult.claims.admin === true;
+        setIdToken(tokenResult.token);
 
-      setIdToken(tokenResult.token);
-      setIsAdmin(userIsAdmin);
+        // Set up a real-time listener for the user's document in Firestore
+        const userDocRef = doc(db, 'users', fbUser.uid);
+        const unsubscribeFirestore = onSnapshot(userDocRef, (userDoc) => {
+          if (userDoc.exists()) {
+            const dbUser = userDoc.data();
+            const firestoreRoleIsAdmin = dbUser.role === 'admin';
+            
+            // The user is an admin if EITHER the custom claim is true OR the Firestore role is 'admin'
+            const finalIsAdmin = customClaimIsAdmin || firestoreRoleIsAdmin;
+            setIsAdmin(finalIsAdmin);
 
-      const userDocRef = doc(db, 'users', fbUser.uid);
-      const userDoc = await getDoc(userDocRef);
-      if (userDoc.exists()) {
-        const dbUser = userDoc.data();
-        const appUser: User = { 
-          uid: fbUser.uid, 
-          name: dbUser.name,
-          email: dbUser.email,
-          // Trust the custom claim for the role, but fallback to firestore
-          role: userIsAdmin ? 'admin' : (dbUser.role || 'user'),
-        };
-        setUser(appUser);
-        // If the role in DB is out of sync with claim, update it
-        if (appUser.role !== dbUser.role) {
-            await setDoc(userDocRef, { role: appUser.role }, { merge: true });
-        }
+            const appUser: User = { 
+              uid: fbUser.uid, 
+              name: dbUser.name,
+              email: dbUser.email || fbUser.email || '',
+              role: finalIsAdmin ? 'admin' : 'user',
+            };
+            setUser(appUser);
+            
+            // Sync Firestore if claim and role are out of sync
+            if (finalIsAdmin && !firestoreRoleIsAdmin) {
+                setDoc(userDocRef, { role: 'admin' }, { merge: true });
+            }
+
+          } else {
+            // This case might happen during signup before the user doc is created
+            setUser(null);
+            setIsAdmin(false);
+          }
+          setLoading(false);
+        });
+
+        // Return the firestore unsubscribe function to clean up the listener
+        return () => unsubscribeFirestore();
       } else {
+        // No user is logged in
         setUser(null);
+        setIdToken(null);
+        setIsAdmin(false);
+        setLoading(false);
       }
-    } else {
-      setUser(null);
-      setIdToken(null);
-      setIsAdmin(false);
-    }
-    setLoading(false);
+    });
+
+    // Clean up auth listener on component unmount
+    return () => unsubscribeAuth();
   }, []);
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, handleAuthStateChanged);
-    return () => unsubscribe();
-  }, [handleAuthStateChanged]);
-
   const login = async (email: string, pass: string) => {
-    setLoading(true);
     return signInWithEmailAndPassword(auth, email, pass);
   };
   
   const signup = async (email: string, pass: string, name: string) => {
-    setLoading(true);
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
-      const fbUser = userCredential.user;
-      const newUser: Omit<User, 'uid' | 'role'> & {role: 'user'} = {
-        name,
-        email: fbUser.email!,
-        role: 'user', // Default role for new signups
-      };
-      await setDoc(doc(db, 'users', fbUser.uid), newUser);
-
-      // We don't set user state directly, onAuthStateChanged will handle it
-      // which ensures custom claims are also processed on first login.
-      router.push('/dashboard');
-    } finally {
-      setLoading(false);
-    }
+    const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
+    const fbUser = userCredential.user;
+    const newUser = {
+      name,
+      email: fbUser.email!,
+      role: 'user', // Default role for new signups
+    };
+    await setDoc(doc(db, 'users', fbUser.uid), newUser);
   };
 
 

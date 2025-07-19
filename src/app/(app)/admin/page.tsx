@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { User, Calendar, Eye, Utensils, ChevronRight, Loader2, ShieldCheck, ShieldOff } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { type AllUsersOutput, type UserNutrientHistoryOutput, setAdminClaim } from '@/ai/flows/admin-flows';
+import { type AllUsersOutput, type UserNutrientHistoryOutput } from '@/ai/flows/admin-flows';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import type { NutrientData } from '@/lib/types';
 import { useAuth } from '@/hooks/use-auth';
@@ -223,6 +223,7 @@ function MakeAdminDialog({ token, onAdminMade }: { token: string | null, onAdmin
       });
       onAdminMade();
       setOpen(false);
+      setEmail('');
     } catch (err: any) {
       toast({
         variant: 'destructive',
@@ -246,7 +247,7 @@ function MakeAdminDialog({ token, onAdminMade }: { token: string | null, onAdmin
         <AlertDialogHeader>
           <AlertDialogTitle>Make User an Admin</AlertDialogTitle>
           <AlertDialogDescription>
-            Enter the email of the user you want to grant admin privileges to. This action is irreversible through the UI.
+            Enter the email of the user you want to grant admin privileges to. This action will grant them full access.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <div className="py-4">
@@ -259,7 +260,7 @@ function MakeAdminDialog({ token, onAdminMade }: { token: string | null, onAdmin
         </div>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={handleMakeAdmin} disabled={loading}>
+          <AlertDialogAction onClick={handleMakeAdmin} disabled={loading || !email}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Confirm
           </AlertDialogAction>
@@ -314,7 +315,7 @@ export default function AdminPage() {
     fetchUsers();
   }, [fetchUsers]);
 
-  if (authLoading || loading) {
+  if (authLoading || !user) {
     return (
         <div className="flex h-full items-center justify-center">
              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
@@ -339,6 +340,11 @@ export default function AdminPage() {
                 <CardDescription>A list of all users in the system.</CardDescription>
             </CardHeader>
             <CardContent>
+               {loading ? (
+                 <div className="flex justify-center items-center h-48">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                 </div>
+               ) : (
                 <Table>
                 <TableHeader>
                     <TableRow>
@@ -379,6 +385,7 @@ export default function AdminPage() {
                     ))}
                 </TableBody>
                 </Table>
+               )}
             </CardContent>
             </Card>
         </Dialog>
