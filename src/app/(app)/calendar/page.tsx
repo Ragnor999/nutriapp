@@ -56,11 +56,11 @@ export default function CalendarPage() {
           setLoading(false);
         });
     } else if (!isAdmin) {
-      // Handle case where non-admin has no selectedId yet
+      // Handle case where non-admin has no selectedId yet, or admin has no users.
       setLoading(false);
       setNutrientHistory([]);
     }
-  }, [selectedUserId]);
+  }, [selectedUserId, isAdmin]);
 
 
   const selectedData = date ? nutrientHistory.find(entry => isSameDay(entry.date, date)) : undefined;
@@ -103,10 +103,10 @@ export default function CalendarPage() {
         )}
       </div>
       {loading ? (
-        <div className="mt-6 grid flex-1 gap-6 md:grid-cols-[350px_1fr]">
+        <div className="mt-6 grid flex-1 gap-6 md:grid-cols-[auto_1fr]">
           <Card>
             <CardContent className="p-6 pt-6">
-               <Skeleton className="w-full h-[300px]" />
+               <Skeleton className="w-[300px] h-[300px]" />
             </CardContent>
           </Card>
            <Card>
@@ -120,8 +120,8 @@ export default function CalendarPage() {
           </Card>
         </div>
       ) : (
-      <div className="mt-6 grid flex-1 gap-6 md:grid-cols-[350px_1fr]">
-        <Card className="flex items-start justify-center pt-6">
+      <div className="mt-6 grid flex-1 gap-6 md:grid-cols-[auto_1fr]">
+        <Card className="flex items-start justify-center pt-6 w-min">
             <Calendar
                 mode="single"
                 selected={date}
