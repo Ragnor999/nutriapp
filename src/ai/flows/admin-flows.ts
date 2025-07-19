@@ -114,6 +114,7 @@ const getUserNutrientHistoryFlow = ai.defineFlow(
     querySnapshot.forEach((doc) => {
       const data = doc.data();
       history.push({
+        // Convert Firestore Timestamp to JS Date object
         date: (data.date as Timestamp).toDate(),
         macros: data.macros,
         micros: data.micros,
