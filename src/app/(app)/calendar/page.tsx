@@ -43,7 +43,7 @@ export default function CalendarPage() {
       
       const historyWithDates = data.history.map((item: any) => ({
           ...item,
-          date: new Date(item.date._seconds * 1000),
+          date: new Date(item.date._seconds * 1000 + (item.date._nanoseconds || 0) / 1000000),
       }));
 
       const sortedHistory = historyWithDates.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());

@@ -57,7 +57,7 @@ function UserDataModal({ user }: { user: UserType }) {
             // API returns dates as objects with _seconds, so we need to convert them
             const historyWithDates = data.history.map((item: any) => ({
                 ...item,
-                date: new Date(item.date._seconds * 1000),
+                date: new Date(item.date._seconds * 1000 + (item.date._nanoseconds || 0) / 1000000),
             }));
 
             const sortedHistory = historyWithDates.sort((a, b) => b.date.getTime() - a.date.getTime());
