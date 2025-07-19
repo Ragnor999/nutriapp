@@ -6,22 +6,48 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Calendar } from '@/components/ui/calendar';
 import type { NutrientData } from '@/lib/types';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, Users } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { getNutrientHistory } from '@/lib/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
 import { isSameDay } from 'date-fns';
+import { getAllUsers, AllUsersOutput } from '@/ai/flows/admin-flows';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+
+type UserType = AllUsersOutput['users'][0];
 
 export default function CalendarPage() {
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [nutrientHistory, setNutrientHistory] = useState<NutrientData[]>([]);
   const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
+  const [users, setUsers] = useState<UserType[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const { user, isAdmin } = useAuth();
   
   useEffect(() => {
-    if (user) {
+    if (isAdmin) {
+      getAllUsers().then(data => {
+        setUsers(data.users);
+        if (data.users.length > 0) {
+          // Default to the first user in the list for admins
+          setSelectedUserId(data.users[0].uid);
+        } else {
+          setLoading(false);
+        }
+      }).catch(err => {
+         console.error("Failed to fetch users:", err);
+         setLoading(false);
+      });
+    } else if (user) {
+      setSelectedUserId(user.uid);
+    }
+  }, [user, isAdmin]);
+
+  useEffect(() => {
+    if (selectedUserId) {
       setLoading(true);
-      getNutrientHistory(user.uid)
+      getNutrientHistory(selectedUserId)
         .then(data => {
           setNutrientHistory(data);
           setLoading(false);
@@ -30,12 +56,13 @@ export default function CalendarPage() {
           console.error("Failed to fetch nutrient history:", err);
           setLoading(false);
         });
-    } else {
-      // If there's no user, we are not loading and there's no history.
+    } else if (!isAdmin) {
+      // Handle case where non-admin has no selectedId yet
       setLoading(false);
       setNutrientHistory([]);
     }
-  }, [user]);
+  }, [selectedUserId, isAdmin]);
+
 
   const selectedData = date ? nutrientHistory.find(entry => isSameDay(entry.date, date)) : undefined;
 
@@ -46,11 +73,36 @@ export default function CalendarPage() {
   ] : [];
 
   const daysWithData = nutrientHistory.map(d => d.date);
+  
+  const selectedUserName = users.find(u => u.uid === selectedUserId)?.displayName || user?.name;
 
   return (
     <div className="flex flex-col h-full">
-      <h1 className="text-3xl font-bold tracking-tight font-headline">Nutrient Calendar</h1>
-      <p className="text-muted-foreground">Review your past nutrient intake day by day.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+        <div>
+            <h1 className="text-3xl font-bold tracking-tight font-headline">Nutrient Calendar</h1>
+            <p className="text-muted-foreground">
+              {isAdmin ? `Viewing data for ${selectedUserName || '...'}` : 'Review your past nutrient intake day by day.'}
+            </p>
+        </div>
+        {isAdmin && (
+          <div className="mt-4 sm:mt-0 w-full sm:w-64">
+             <Label htmlFor="user-select" className="flex items-center gap-2 mb-2 text-sm font-medium text-muted-foreground"><Users className="w-4 h-4"/>Select User</Label>
+            <Select onValueChange={setSelectedUserId} value={selectedUserId || ''} disabled={users.length === 0}>
+              <SelectTrigger id="user-select" className="w-full">
+                <SelectValue placeholder="Select a user to view" />
+              </SelectTrigger>
+              <SelectContent>
+                {users.map((u) => (
+                  <SelectItem key={u.uid} value={u.uid}>
+                    {u.displayName || u.email}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
       {loading ? (
         <div className="mt-6 grid flex-1 gap-6 md:grid-cols-[350px_1fr]">
           <Card>
@@ -76,6 +128,7 @@ export default function CalendarPage() {
                 selected={date}
                 onSelect={setDate}
                 className="p-0"
+                disabled={!selectedUserId || nutrientHistory.length === 0}
                 modifiers={{
                     hasData: daysWithData
                 }}
@@ -125,7 +178,7 @@ export default function CalendarPage() {
                 </div>
             ) : (
                 <div className="flex items-center justify-center h-64 text-center">
-                    <p className="text-muted-foreground">Select a highlighted day to see nutrient details.</p>
+                    <p className="text-muted-foreground">{!selectedUserId && isAdmin ? 'Select a user to view their calendar.' : 'Select a highlighted day to see nutrient details.'}</p>
                 </div>
             )}
           </CardContent>

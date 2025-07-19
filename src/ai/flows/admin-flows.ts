@@ -46,14 +46,28 @@ const getAllUsersFlow = ai.defineFlow(
     outputSchema: AllUsersOutputSchema,
   },
   async () => {
-    const userRecords = await getAuth().listUsers();
-    const users = userRecords.users.map((user) => ({
-      uid: user.uid,
-      email: user.email,
-      displayName: user.displayName,
-      creationTime: user.metadata.creationTime,
-    }));
-    return { users };
+    const authUserRecords = await getAuth().listUsers();
+    
+    const usersWithFirestoreData = await Promise.all(
+        authUserRecords.users.map(async (userRecord) => {
+            const userDocRef = db.collection('users').doc(userRecord.uid);
+            const userDoc = await userDocRef.get();
+            const firestoreData = userDoc.data();
+
+            return {
+                uid: userRecord.uid,
+                email: userRecord.email,
+                // Prefer Firestore name, fall back to Auth displayName
+                displayName: firestoreData?.name || userRecord.displayName,
+                creationTime: userRecord.metadata.creationTime,
+            };
+        })
+    );
+    
+    // Sort users by creation time, newest first
+    const sortedUsers = usersWithFirestoreData.sort((a,b) => new Date(b.creationTime).getTime() - new Date(a.creationTime).getTime());
+
+    return { users: sortedUsers };
   }
 );
 
