@@ -32,20 +32,22 @@ export async function GET(request: NextRequest) {
     const decodedToken = await getAuth().verifyIdToken(authToken);
     const callerUid = decodedToken.uid;
 
-    // Check if the caller is an admin by reading their Firestore document
+    // Check the caller's role in Firestore
     const callerDocRef = db.collection('users').doc(callerUid);
     const callerDoc = await callerDocRef.get();
     const isCallerAdmin = callerDoc.exists && callerDoc.data()?.role === 'admin';
 
-    // A regular user can only access their own history.
+    // Authorization Check:
     // An admin can access anyone's history.
-    if (callerUid !== userId && !isCallerAdmin) {
+    // A regular user can only access their own.
+    if (!isCallerAdmin && callerUid !== userId) {
         return NextResponse.json({ message: 'Forbidden: You do not have permission to view this data.' }, { status: 403 });
     }
 
     // If the checks pass, fetch the history.
     const data = await getUserNutrientHistory(userId);
     return NextResponse.json(data);
+
   } catch (error) {
     console.error(`Error in /api/admin/history for userId ${userId}:`, error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';

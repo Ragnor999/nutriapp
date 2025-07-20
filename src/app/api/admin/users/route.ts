@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
     const userDocRef = db.collection('users').doc(uid);
     const userDoc = await userDocRef.get();
 
+    // Only allow admins to access this route
     if (!userDoc.exists || userDoc.data()?.role !== 'admin') {
       return NextResponse.json({ message: 'Forbidden: User is not an admin' }, { status: 403 });
     }
