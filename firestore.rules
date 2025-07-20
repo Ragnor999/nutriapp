@@ -1,0 +1,43 @@
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Rules for the 'users' collection
+    match /users/{userId} {
+      // A user can read their own profile. An admin can read any profile.
+      allow read: if request.auth != null && (
+        request.auth.uid == userId || 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
+
+      // A user can only create their own user document.
+      allow create: if request.auth != null && request.auth.uid == userId;
+
+      // A user can update their own data, but cannot change their role.
+      allow update: if request.auth != null && 
+        request.auth.uid == userId && 
+        request.resource.data.role == resource.data.role;
+      
+      // Only admins can delete user documents (optional, good practice)
+      allow delete: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Rules for the 'nutrientHistory' collection
+    match /nutrientHistory/{docId} {
+      // A user can read their own history. An admin can read any history.
+      allow read: if request.auth != null && (
+        request.auth.uid == resource.data.userId || 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
+
+      // A user can create their own nutrient entry.
+      // We also check that the incoming data's userId matches the creator's ID.
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+
+      // A user can update or delete their own entries.
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
+  }
+}
