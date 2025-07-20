@@ -28,6 +28,9 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // Artificial delay for testing
+    await new Promise(resolve => setTimeout(resolve, 5000));
+    
     const decodedToken = await getAuth().verifyIdToken(authToken);
     const callerUid = decodedToken.uid;
     const callerDocRef = db.collection('users').doc(callerUid);
