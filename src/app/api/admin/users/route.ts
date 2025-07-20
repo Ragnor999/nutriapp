@@ -7,7 +7,7 @@ import adminSdkConfig from '../../../../../firebase-adminsdk.json';
 
 if (!getApps().length) {
   initializeApp({
-    credential: cert(adminSdkConfig as ServiceAccount),
+    credential: cert(JSON.parse(JSON.stringify(adminSdkConfig)) as ServiceAccount),
   });
 }
 const db = getFirestore();
@@ -36,8 +36,8 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Error in /api/admin/users:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    if (errorMessage.includes('ID token has expired')) {
-        return NextResponse.json({ message: 'Firebase ID token has expired. Please log in again.' }, { status: 401 });
+    if (errorMessage.includes('ID token has expired') || errorMessage.includes('verifyIdToken')) {
+        return NextResponse.json({ message: 'Firebase ID token is invalid or has expired. Please log in again.' }, { status: 401 });
     }
     return NextResponse.json({ message: 'Failed to fetch users', error: errorMessage }, { status: 500 });
   }

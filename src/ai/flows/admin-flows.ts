@@ -19,7 +19,7 @@ import adminSdkConfig from '../../../firebase-adminsdk.json';
 // Initialize Firebase Admin SDK
 if (!getApps().length) {
   initializeApp({
-    credential: cert(adminSdkConfig as ServiceAccount),
+    credential: cert(JSON.parse(JSON.stringify(adminSdkConfig)) as ServiceAccount),
   });
 }
 
