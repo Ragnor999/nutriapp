@@ -1,3 +1,4 @@
+
 import { getUserNutrientHistory } from '@/ai/flows/admin-flows';
 import { NextResponse, NextRequest } from 'next/server';
 import { getAuth } from 'firebase-admin/auth';
@@ -25,6 +26,9 @@ export async function GET(request: NextRequest) {
   if (!userId) {
     return NextResponse.json({ message: 'User ID is required' }, { status: 400 });
   }
+
+  // Artificial delay for testing
+  await new Promise(resolve => setTimeout(resolve, 1000));
 
   try {
     const decodedToken = await getAuth().verifyIdToken(authToken);
