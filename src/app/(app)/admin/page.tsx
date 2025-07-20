@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -202,42 +202,42 @@ export default function AdminPage() {
     }
   }, [user, isAdmin, authLoading, router]);
 
-  useEffect(() => {
-    const fetchUsers = async () => {
-        if (!idToken) {
-            setLoading(false);
-            return;
-        }
+  const fetchUsers = useCallback(async () => {
+    if (!idToken) {
+        setLoading(false);
+        return;
+    }
 
-        setLoading(true);
-        try {
-            const response = await fetch('/api/admin/users', {
-                headers: {
-                    'Authorization': `Bearer ${idToken}`
-                }
-            });
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to fetch users');
+    setLoading(true);
+    try {
+        const response = await fetch('/api/admin/users', {
+            headers: {
+                'Authorization': `Bearer ${idToken}`
             }
-            const data: AllUsersOutput = await response.json();
-            setUsers(data.users);
-        } catch (err: any) {
-            console.error("Failed to fetch users:", err);
-            toast({
-                variant: 'destructive',
-                title: 'Error',
-                description: err.message || "Could not fetch the list of users."
-            });
-        } finally {
-            setLoading(false);
+        });
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Failed to fetch users');
         }
-    };
-    
+        const data: AllUsersOutput = await response.json();
+        setUsers(data.users);
+    } catch (err: any) {
+        console.error("Failed to fetch users:", err);
+        toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: err.message || "Could not fetch the list of users."
+        });
+    } finally {
+        setLoading(false);
+    }
+  }, [idToken, toast]);
+
+  useEffect(() => {
     if (!authLoading && isAdmin) {
       fetchUsers();
     }
-  }, [authLoading, isAdmin, idToken, toast]);
+  }, [authLoading, isAdmin, fetchUsers]);
 
   if (authLoading) {
     return (
