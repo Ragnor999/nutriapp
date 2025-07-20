@@ -27,9 +27,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ message: 'User ID is required' }, { status: 400 });
   }
 
-  // Artificial delay for testing
-  await new Promise(resolve => setTimeout(resolve, 1000));
-
   try {
     const decodedToken = await getAuth().verifyIdToken(authToken);
     const callerUid = decodedToken.uid;
