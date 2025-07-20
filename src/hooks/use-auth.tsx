@@ -14,6 +14,7 @@ import {
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { app, db } from '@/lib/firebase';
 
+
 const auth = getAuth(app);
 
 type User = {
