@@ -58,7 +58,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // Listen for Firestore document changes
         const userDocRef = doc(db, 'users', fbUser.uid);
         const unsubFirestore = onSnapshot(userDocRef, async (docSnap) => {
-            if (docSnap.exists()) {
+            if (docSnap.exists) {
                 const dbUser = docSnap.data();
                 const userIsAdmin = dbUser.role === 'admin';
                 
@@ -73,7 +73,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 setIsAdmin(userIsAdmin);
 
                 try {
-                  // Refresh token to ensure custom claims (if any) are fresh
+                  // Force refresh token to ensure custom claims are fresh
                   const token = await fbUser.getIdToken(true); 
                   setIdToken(token);
                 } catch (e) {
@@ -84,8 +84,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 }
 
             } else {
-                // This can happen on signup before doc is created.
-                // Or if a user is deleted from Firestore but not Auth.
                 console.warn("User document not found in Firestore, logging out.");
                 await logout();
             }
