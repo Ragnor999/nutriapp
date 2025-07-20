@@ -58,7 +58,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // Listen for Firestore document changes
         const userDocRef = doc(db, 'users', fbUser.uid);
         const unsubFirestore = onSnapshot(userDocRef, async (docSnap) => {
-            if (docSnap.exists) {
+            if (docSnap.exists()) {
                 const dbUser = docSnap.data();
                 const userIsAdmin = dbUser.role === 'admin';
                 
