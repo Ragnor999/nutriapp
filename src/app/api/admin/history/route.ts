@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
 
   try {
     // Artificial delay for testing
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    await new Promise(resolve => setTimeout(resolve, 1000));
     
     const decodedToken = await getAuth().verifyIdToken(authToken);
     const callerUid = decodedToken.uid;
