@@ -14,6 +14,7 @@ import { initializeApp, getApps, cert, ServiceAccount } from 'firebase-admin/app
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import type { NutrientData } from '@/lib/types';
 import adminSdkConfig from '../../../firebase-adminsdk.json';
+import { date } from 'zod';
 
 
 // Initialize Firebase Admin SDK
@@ -48,24 +49,24 @@ const getAllUsersFlow = ai.defineFlow(
   },
   async () => {
     const authUserRecords = await auth.listUsers();
-    
-    const usersWithFirestoreData = await Promise.all(
-        authUserRecords.users.map(async (userRecord) => {
-            const userDocRef = db.collection('users').doc(userRecord.uid);
-            const userDoc = await userDocRef.get();
-            const firestoreData = userDoc.data();
 
-            return {
-                uid: userRecord.uid,
-                email: userRecord.email,
-                displayName: firestoreData?.name || userRecord.displayName,
-                creationTime: userRecord.metadata.creationTime,
-                isAdmin: firestoreData?.role === 'admin',
-            };
-        })
+    const usersWithFirestoreData = await Promise.all(
+      authUserRecords.users.map(async (userRecord) => {
+        const userDocRef = db.collection('users').doc(userRecord.uid);
+        const userDoc = await userDocRef.get();
+        const firestoreData = userDoc.data();
+
+        return {
+          uid: userRecord.uid,
+          email: userRecord.email,
+          displayName: firestoreData?.name || userRecord.displayName,
+          creationTime: userRecord.metadata.creationTime,
+          isAdmin: firestoreData?.role === 'admin',
+        };
+      })
     );
-    
-    const sortedUsers = usersWithFirestoreData.sort((a,b) => new Date(b.creationTime).getTime() - new Date(a.creationTime).getTime());
+
+    const sortedUsers = usersWithFirestoreData.sort((a, b) => new Date(b.creationTime).getTime() - new Date(a.creationTime).getTime());
 
     return { users: sortedUsers };
   }
@@ -119,13 +120,13 @@ const getUserNutrientHistoryFlow = ai.defineFlow(
         calories: data.calories,
       });
     });
-    
+
     const sortedHistory = history.sort((a, b) => b.date.getTime() - a.date.getTime());
-    
-    return { history: sortedHistory };
+
+    return { history: sortedHistory.map((data) => ({ ...data, date: data.date.toISOString() as any })) };
   }
 );
 
 export async function getUserNutrientHistory(userId: string): Promise<UserNutrientHistoryOutput> {
-    return getUserNutrientHistoryFlow({ userId });
+  return getUserNutrientHistoryFlow({ userId });
 }

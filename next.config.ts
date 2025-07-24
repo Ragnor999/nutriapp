@@ -3,7 +3,7 @@ import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
   
-  allowedDevOrigins: ['https://*.cloudworkstations.dev'],
+  allowedDevOrigins: ['https://*.cloudworkstations.dev', '*.cloudworkstations.dev'],
   typescript: {
     ignoreBuildErrors: true,
   },
